@@ -46,8 +46,8 @@
 
 <div class="overlay show" id="ovStart">
   <h1>🥁 Bateria</h1>
-  <p>Aponta o comando para um tambor e carrega <b>OK</b>.<br>
-  Ou faz de baqueta: aponta e <b>abana o comando para baixo</b> — toca o tambor onde estavas a apontar.</p>
+  <p>Basta <b>passar o ponteiro por cima</b> de um tambor para tocar — sem clicar.<br>
+  Para tocar o mesmo tambor outra vez, sai e volta a entrar.</p>
   <p class="muted">Teclas: setas escolhem o tambor · OK toca · 1–8 tocam direto · Voltar abre o menu</p>
   <button id="bStart">Começar</button>
 </div>
@@ -75,7 +75,7 @@
   <div class="row"><button id="sSwing"></button><button id="sSens"></button></div>
   <div class="row"><button id="sMetro"></button><button id="sSpeed"></button></div>
   <div class="row"><button id="sTempo"></button></div>
-  <div id="meter">Abana o comando para ver a velocidade do movimento…</div>
+  <div id="meter">No modo «Abanar», abana o comando para ver a velocidade do movimento…</div>
   <button data-close>Fechar</button>
 </div>
 
@@ -125,8 +125,10 @@ function drumAt(x, y, forgive = 1) {
 }
 
 // ---------- settings ----------
-const S = Object.assign({ swing: true, sens: 1, metro: true, speed: 1, tempo: 90 },
+const S = Object.assign({ mode: 'hover', sens: 1, metro: true, speed: 1, tempo: 90 },
   JSON.parse(localStorage.getItem('drums.s') || '{}'));
+const MODES = { hover: 'Passar por cima', swing: 'Abanar (baqueta)', click: 'Só clicar' };
+if (!MODES[S.mode]) S.mode = 'hover';
 const SENS = [{ n: 'Baixa', v: 3200 }, { n: 'Média', v: 2200 }, { n: 'Alta', v: 1400 }];
 const SPEEDS = [0.8, 1, 1.2];
 const save = () => localStorage.setItem('drums.s', JSON.stringify(S));
@@ -202,8 +204,28 @@ addEventListener('pointermove', e => {
   ptr.x = p.x; ptr.y = p.y; ptr.seen = t;
   hist.push({ t, x: p.x, y: p.y });
   while (hist.length > 2 && t - hist[0].t > 250) hist.shift();
+  hoverCheck(p, t);
   swingCheck(t);
 });
+// hover mode: a drum plays the moment the pointer enters it (leave and re-enter to hit again)
+let hoverDrum = null;
+function hoverCheck(p, t) {
+  if (S.mode !== 'hover' || menuOpen()) { hoverDrum = null; return; }
+  if (hoverDrum && inside(hoverDrum, p.x, p.y, 1.08)) return;   // small margin so edge jitter doesn't re-trigger
+  const d = drumAt(p.x, p.y, 1);
+  if (d && d !== hoverDrum && t - (d.lastEnter || 0) > 100) {
+    d.lastEnter = t;
+    const speed = Math.hypot(...speedXY(t));
+    playDrum(d, Math.min(1, 0.55 + speed / 4000));
+  }
+  hoverDrum = d;
+}
+function speedXY(t) {
+  const last = hist[hist.length - 1]; let s = null;
+  for (const h of hist) if (last.t - h.t <= 70) { s = h; break; }
+  if (!s || s === last || last.t - s.t < 8) return [0, 0];
+  const dt = (last.t - s.t) / 1000; return [(last.x - s.x) / dt, (last.y - s.y) / dt];
+}
 function velY(t) {
   const last = hist[hist.length - 1];
   if (!last) return 0;
@@ -213,7 +235,7 @@ function velY(t) {
   return (last.y - s.y) / ((last.t - s.t) / 1000);
 }
 function swingCheck(t) {
-  if (!S.swing || menuOpen()) { armed = false; return; }
+  if (S.mode !== 'swing' || menuOpen()) { armed = false; return; }
   const vy = velY(t), th = SENS[S.sens].v;
   if (vy > th) {
     if (!armed) {
@@ -402,14 +424,14 @@ SONGS.forEach((sg, i) => {
   $('songList').appendChild(b);
 });
 function renderSet() {
-  $('sSwing').textContent = 'Baqueta no ar: ' + (S.swing ? 'ligada' : 'desligada');
+  $('sSwing').textContent = 'Tocar: ' + MODES[S.mode];
   $('sSens').textContent = 'Sensibilidade: ' + SENS[S.sens].n;
   $('sMetro').textContent = 'Metrónomo no ritmo: ' + (S.metro ? 'sim' : 'não');
   $('sSpeed').textContent = 'Velocidade dos ritmos: ' + Math.round(SPEEDS[S.speed] * 100) + '%';
   $('sTempo').textContent = 'Acompanhamento: ' + S.tempo + ' bpm';
   save();
 }
-$('sSwing').onclick = () => { S.swing = !S.swing; renderSet(); };
+$('sSwing').onclick = () => { const k = Object.keys(MODES); S.mode = k[(k.indexOf(S.mode) + 1) % k.length]; renderSet(); };
 $('sSens').onclick = () => { S.sens = (S.sens + 1) % SENS.length; renderSet(); updMeter(); };
 $('sMetro').onclick = () => { S.metro = !S.metro; renderSet(); };
 $('sSpeed').onclick = () => { S.speed = (S.speed + 1) % SPEEDS.length; renderSet(); };
