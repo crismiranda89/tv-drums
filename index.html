@@ -254,6 +254,12 @@ const SONGS = [
     kick: 'x..x..x...x..x..', bass: 'x..o..x.5.x..o.x', arp: true,
     pat: { A: 'h.hs.h.hh.hs.h.h', B: 'h.hs.h.ht.ts.t.h', C: 't.ts.t.th.hs.h.t', F: 's.st.ts.s.tt.s.h' },
     order: 'AAAB AAAB CCAF AABF CCCB AABF AAFF' },
+  // rock: distorted power-chord guitar. gtr per section: x = palm-muted chug, X = open chord ringing to the next hit
+  { id: 'rock', name: 'Amp Overdrive', bpm: 138, level: 3, key: 40, prog: [[0, '5'], [0, '5'], [8, '5'], [10, '5']], rock: true,
+    kick: 'x.....x.x.x.....', bass: 'x.x.x.x.x.x.x.x.', arp: false,
+    pat: { G: 'h...h...s...h...', A: 'h.h.s.h.h.h.s.h.', B: 'h.h.s.h.t.t.s.s.', C: 't.h.s.h.t.h.s.h.', F: 's.s.s.s.t.t.t.t.' },
+    gtr: { G: 'X.......X.....x.', A: 'x.x.x.x.x.x.X...', B: 'x.x.x.x.x.x.x.x.', C: 'X.......X...X...', F: 'x.x.x.x.xxxxxxxx' },
+    order: 'GGGB AAAB AAAF CCCB CCCF GGAB AAAF CCFF' },
 ];
 const LEVELS = ['', 'Easy', 'Medium', 'Hard', 'Expert'];
 const SPEEDS = [{ n: 'Slow', v: 2.2 }, { n: 'Normal', v: 1.7 }, { n: 'Fast', v: 1.25 }];
@@ -507,7 +513,7 @@ for (const [x, c, tx] of [[-4.2, 0xff3d8b, -1.0], [-1.6, 0x8c5aff, -0.3], [1.6, 
     new THREE.MeshBasicMaterial({ map: coneTex, color: c, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
   m.position.copy(top).addScaledVector(d, 0.5);
   m.quaternion.setFromUnitVectors(V(0, -1, 0), d.clone().normalize());
-  m.userData.base = 0.09; scene.add(m); cones.push(m);
+  m.userData.base = 0.09; m.userData.col = c; scene.add(m); cones.push(m);
 }
 
 // lights
@@ -847,6 +853,15 @@ function initAudio() {
   const n = ac.sampleRate * 1.6, ib = ac.createBuffer(2, n, ac.sampleRate);
   for (let c = 0; c < 2; c++) { const d = ib.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2); }
   rev.buffer = ib; const rg = ac.createGain(); rg.gain.value = 0.28; rev.connect(rg); rg.connect(master);
+  // guitar amp: drive -> waveshaper -> cabinet (lowpass + mid bump) -> music bus
+  gtrIn = ac.createGain(); gtrIn.gain.value = 6;
+  const ws = ac.createWaveShaper(), cv = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; cv[i] = Math.tanh(x * 3.2) * 0.9; }
+  ws.curve = cv; ws.oversample = '2x';
+  const cab = ac.createBiquadFilter(); cab.type = 'lowpass'; cab.frequency.value = 4300; cab.Q.value = 0.8;
+  const mid = ac.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 900; mid.gain.value = 4; mid.Q.value = 0.9;
+  const gOut = ac.createGain(); gOut.gain.value = 0.13;
+  gtrIn.connect(ws); ws.connect(cab); cab.connect(mid); mid.connect(gOut); out(gOut, musicBus, 0.18);
   noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
   const ch = noiseBuf.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
 }
@@ -905,6 +920,16 @@ function pad(t, notes, dur) {
   f.connect(g); out(g, musicBus, 0.6);
   for (const m of notes) for (const det of [-9, 9]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = det; o.connect(f); o.start(t); o.stop(t + dur + 0.3); }
 }
+let gtrIn = null;
+function powerChord(t, root, dur, muted) {
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 1;
+  f.frequency.setValueAtTime(muted ? 1500 : 3000, t); f.frequency.exponentialRampToValueAtTime(muted ? 450 : 1400, t + (muted ? 0.09 : dur));
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.004);
+  if (muted) g.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur, 0.14));
+  else { g.gain.setValueAtTime(0.25, t + dur * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+  f.connect(g); g.connect(gtrIn);
+  [[0, -7], [7, 6], [12, -3]].forEach(([iv, det]) => { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(root + iv); o.detune.value = det; o.connect(f); o.start(t); o.stop(t + dur + 0.05); });
+}
 function pluck(t, m) {
   const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = mtof(m);
   const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 4; f.frequency.setValueAtTime(3200, t); f.frequency.exponentialRampToValueAtTime(500, t + 0.16);
@@ -942,7 +967,7 @@ function buildChart(sg) {
 function scheduleBar(sg, bi, t0, final) {
   const sd = 60 / sg.bpm / 4;
   if (bi === 0) { for (let k = 0; k < 4; k++) SOUND.click(t0 + k * 4 * sd, k ? 0.75 : 1); return; }
-  if (final) { SOUND.kick(t0); SOUND.crash(t0); kickTimes.push(t0); const [iv, q] = sg.prog[0]; bassNote(t0, sg.key + iv, 1.2); pad(t0, chord(sg.key + iv + 24, q), 1.8); return; }
+  if (final) { SOUND.kick(t0); SOUND.crash(t0); kickTimes.push(t0); const [iv, q] = sg.prog[0]; bassNote(t0, sg.key + iv, 1.2); if (sg.gtr) powerChord(t0, sg.key + iv + 12, 2.4, false); else pad(t0, chord(sg.key + iv + 24, q), 1.8); return; }
   const [iv, q] = sg.prog[(bi - 1) % sg.prog.length];
   let root = sg.key + iv; if (iv > 7) root -= 12;
   for (let s = 0; s < 16; s++) {
@@ -950,7 +975,15 @@ function scheduleBar(sg, bi, t0, final) {
     if (sg.kick[s] === 'x') { SOUND.kick(t, s ? 0.85 : 1); kickTimes.push(t); }
     const b = sg.bass[s]; if (b !== '.') bassNote(t, root + (b === 'o' ? 12 : b === '5' ? 7 : 0), sd * 1.7);
   }
-  pad(t0, chord(root + 24, q), sd * 16);
+  if (sg.gtr) {
+    const sec = sg.order.replace(/\s/g, '')[bi - 1], gp = sg.gtr[sec];
+    if ((bi - 1) % 4 === 0) SOUND.crash(t0, 0.8);
+    for (let s = 0; s < 16; s++) {
+      const c = gp[s]; if (c === '.') continue;
+      let n = 1; while (s + n < 16 && gp[s + n] === '.') n++;
+      powerChord(t0 + s * sd, root + 12, c === 'X' ? n * sd : sd * 0.95, c === 'x');
+    }
+  } else pad(t0, chord(root + 24, q), sd * 16);
   if (sg.arp) { const cn = chord(root + 36, q), seq = [0, 1, 2, 1, 0, 2, 1, 2]; for (let k = 0; k < 8; k++) pluck(t0 + k * 2 * sd, cn[seq[k]] + (k === 6 ? 12 : 0)); }
 }
 function musicTick() {
@@ -1060,7 +1093,7 @@ function updHud() {
 }
 
 // ---------- flow ----------
-let propDim = 1, shake = 0, countShown = -1, lastSong = 0, ptrMode = 'touch';
+let rockFlash = 0, rockBar = -1, propDim = 1, shake = 0, countShown = -1, lastSong = 0, ptrMode = 'touch';
 function show(id) {
   for (const o of document.querySelectorAll('.ov')) o.classList.toggle('show', o.id === id);
   document.querySelectorAll('.kf').forEach(e => e.classList.remove('kf'));
@@ -1323,7 +1356,7 @@ function frame(now) {
     L.approach.visible = ak >= 0;
     if (ak >= 0) { L.approach.scale.setScalar(L.r * 0.82 * (1 + 0.6 * ak)); L.approach.material.opacity = (1 - ak) * 0.75; }
     L.beamK += ((inGame || state === 'free' ? 1 : 0.35) - L.beamK) * Math.min(1, dt * 3);
-    L.beam.material.opacity = L.beamK * L.gain * (0.32 + L.flash * 0.5 + (hot ? 0.25 + pulse * 0.2 : 0));
+    L.beam.material.opacity = L.beamK * L.gain * (0.32 + L.flash * 0.5 + (hot ? 0.25 + pulse * 0.2 : 0) + rockFlash * 0.35);
     L.missT = Math.max(0, (L.missT || 0) - dt);
     L.beam.material.color.setHex(L.missT > 0 ? 0x553040 : hot ? 0xffe9a8 : c);
   }
@@ -1341,12 +1374,18 @@ function frame(now) {
     crowdHaze.forEach((h, k) => { h.visible = vis; h.material.opacity = 0.45 + kickDrum.pump * 0.35 + (k === Math.floor(beat) % 3 ? pulse * 0.25 : 0); });
     footLights.forEach((f, k) => { f.visible = vis; f.material.opacity = 0.35 + kickDrum.pump * 0.5 + (k % 3 === Math.floor(beat) % 3 ? pulse * 0.4 : 0); });
     crowd.forEach((m, k) => { m.visible = vis; if (!vis) return; const on = (state === 'play' && st > 0) || jam; const bp = beat + m.userData.ph * 0.13;
-      m.position.y = m.userData.y + (on ? Math.pow(Math.abs(Math.sin(bp * Math.PI)), 3) * (hot ? 0.13 : 0.07) : Math.sin(now / 1400 + k) * 0.01);
+      m.position.y = m.userData.y + (on ? Math.pow(Math.abs(Math.sin(bp * Math.PI)), 3) * (hot ? 0.13 : 0.07) * (song && song.rock ? 1.6 : 1) + rockFlash * 0.12 : Math.sin(now / 1400 + k) * 0.01);
       m.position.x = Math.sin(now / 2100 + k * 2) * 0.06; }); }
   kickGlow.material.opacity = 0.12 + kickDrum.pump * 0.5; riserRim.material.opacity = 0.25 + kickDrum.pump * 0.6;
-  // stage lights breathe with the beat
+  // stage lights breathe with the beat; the rock song gets a light show (strobe on each crash, colour chase, wide sweeps)
   const musicOn = (state === 'play' && st > 0) || (state === 'free' && jam);
-  cones.forEach((c, i) => { c.rotation.z = (c.userData.rz === undefined ? (c.userData.rz = c.rotation.z) : c.userData.rz) + (musicOn ? Math.sin(now / 1000 * Math.PI / (2 * 60 / bpm) + i) * 0.14 : 0); c.material.opacity = c.userData.base * (musicOn ? 0.7 + pulse * (hot ? 1.6 : 0.9) : 0.8 + 0.2 * Math.sin(now / 900 + i)); });
+  const rock = musicOn && song && song.rock;
+  if (rock) { const bi = Math.floor(st / barDur); if (bi !== rockBar) { rockBar = bi; if (bi >= 1 && (bi - 1) % 4 === 0) { rockFlash = 1; shake = Math.max(shake, 0.35); } } }
+  else rockBar = -1;
+  rockFlash = Math.max(0, rockFlash - dt * 2.2);
+  cones.forEach((c, i) => { c.rotation.z = (c.userData.rz === undefined ? (c.userData.rz = c.rotation.z) : c.userData.rz) + (musicOn ? Math.sin(now / 1000 * Math.PI / (2 * 60 / bpm) * (rock ? 2 : 1) + i) * (rock ? 0.3 : 0.14) : 0);
+    c.material.opacity = c.userData.base * (musicOn ? 0.7 + pulse * (hot || rock ? 1.6 : 0.9) + rockFlash * 4 : 0.8 + 0.2 * Math.sin(now / 900 + i));
+    c.material.color.setHex(rock ? cones[(i + Math.floor(beat)) % cones.length].userData.col : c.userData.col); });
   rimL.intensity = 40 * (musicOn ? 0.75 + pulse * 0.5 : 1); rimR.intensity = rimL.intensity;
   goldK += ((hot ? 1 : 0) - goldK) * Math.min(1, dt * 2); rimL.color.setHex(0xff9ab0).lerp(GOLD, goldK); rimR.color.setHex(0x9fd0ff).lerp(GOLD, goldK);
 
