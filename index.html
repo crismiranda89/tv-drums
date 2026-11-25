@@ -152,8 +152,13 @@
   .nogap .opt>*+*{margin-left:12px} .nogap #rBreak>*+*{margin-left:18px}
   .tv *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
   .tv #mult .fg,.tv .jd.perf{filter:none} .tv #startBtn,.tv #mult.hot{animation:none}
-  #fps{position:fixed;z-index:20;right:max(10px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));
-    font:600 12px/1 ui-monospace,Menlo,monospace;color:rgba(200,200,210,.45);cursor:pointer;user-select:none;letter-spacing:.02em}
+  #fps{position:fixed;z-index:20;right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));
+    font:600 13px/1 ui-monospace,Menlo,monospace;color:rgba(225,225,235,.8);background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;
+    cursor:pointer;user-select:none;letter-spacing:.02em}
+  .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px} /* TVs overscan: keep clear of the edge */
+  .gfxRow{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;font:700 12px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .gfxRow .live{font:600 13px/1 ui-monospace,Menlo,monospace;letter-spacing:0;text-transform:none;color:#fff;min-width:15ch;text-align:left}
+  .nogap .gfxRow>*+*{margin-left:10px}
 </style>
 </head>
 <body>
@@ -179,6 +184,7 @@
   <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:4vh">
     <button class="btn primary big" id="startBtn">Play</button>
     <div class="hint" id="titleHint">Tap a drum when its ring lands on it.</div>
+    <div class="gfxRow">Graphics <div class="seg gfxSeg"></div><span class="live"></span></div>
   </div>
 </div>
 
@@ -197,6 +203,7 @@
     <button class="btn primary" id="resumeBtn">Resume</button>
     <button class="btn" id="restartBtn">Restart</button>
     <button class="btn" id="quitBtn">Song list</button>
+    <div class="gfxRow" style="margin-top:8px">Graphics <div class="seg gfxSeg"></div><span class="live"></span></div>
   </div>
   <div class="row" id="freeRow" style="display:none"><button class="btn" id="jamBtn">Backing beat: off</button></div>
 </div>
@@ -279,6 +286,7 @@ const PROFILE = localStorage.getItem('bateria.gfx') || (TVUA ? 'tv' : PHONEUA ? 
 const TV = PROFILE === 'tv';
 const MOBILE = PROFILE !== 'pc';
 if (TV) document.documentElement.classList.add('tv');
+if (TVUA) document.documentElement.classList.add('tvua');
 { const d = document.createElement('div'); d.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute';
   d.appendChild(document.createElement('div')); d.appendChild(document.createElement('div')); document.body.appendChild(d);
   if (d.scrollHeight !== 1) document.documentElement.classList.add('nogap'); d.remove(); }
@@ -751,14 +759,32 @@ function fpsTick(now) {
   fpsN++; if (!fpsT0) fpsT0 = now;
   if (now - fpsT0 < 500) return;
   const fps = Math.round(fpsN * 1000 / (now - fpsT0)); fpsN = 0; fpsT0 = now;
-  fpsEl.textContent = fps + ' fps · ' + PROFILE + (localStorage.getItem('bateria.gfx') ? '*' : '') + ' · ' + R.domElement.height + 'p' + (GFX.steps ? ' ↓' + GFX.steps : '');
+  gfxLive.forEach(el => { el.textContent = fps + ' fps · ' + AUTO_NAME[PROFILE]; });
+  fpsEl.textContent = fps + ' fps · ' + AUTO_NAME[PROFILE] + (localStorage.getItem('bateria.gfx') ? '' : ' (auto)') + ' · ' + R.domElement.height + 'p' + (GFX.steps ? ' ↓' + GFX.steps : '');
+}
+function setGfx(next) {
+  if (next === 'auto') localStorage.removeItem('bateria.gfx'); else localStorage.setItem('bateria.gfx', next);
+  sessionStorage.removeItem('bateria.lowgfx'); location.reload();
 }
 fpsEl.addEventListener('click', e => {
   e.stopPropagation();
-  const order = ['auto', 'tv', 'phone', 'pc'], cur = localStorage.getItem('bateria.gfx') || 'auto', next = order[(order.indexOf(cur) + 1) % order.length];
-  if (next === 'auto') localStorage.removeItem('bateria.gfx'); else localStorage.setItem('bateria.gfx', next);
-  sessionStorage.removeItem('bateria.lowgfx'); location.reload();
+  const order = ['auto', 'tv', 'phone', 'pc'], cur = localStorage.getItem('bateria.gfx') || 'auto';
+  setGfx(order[(order.indexOf(cur) + 1) % order.length]);
 });
+// Graphics selector (title + pause screens): Auto / Low (tv) / Medium (phone) / High (pc); live fps beside it
+const GFX_OPTS = [['auto', 'Auto'], ['tv', 'Low'], ['phone', 'Medium'], ['pc', 'High']];
+const AUTO_NAME = { tv: 'Low', phone: 'Medium', pc: 'High' };
+document.querySelectorAll('.gfxSeg').forEach(seg => {
+  const cur = localStorage.getItem('bateria.gfx') || 'auto';
+  GFX_OPTS.forEach(([v, n]) => {
+    const b = document.createElement('button');
+    b.textContent = n;
+    b.classList.toggle('on', v === cur);
+    b.onclick = e => { e.stopPropagation(); if (v !== cur) setGfx(v); };
+    seg.appendChild(b);
+  });
+});
+const gfxLive = [...document.querySelectorAll('.gfxRow .live')];
 
 // ================= camera framing =================
 let W = 1, H = 1;
