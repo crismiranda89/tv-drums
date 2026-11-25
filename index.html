@@ -150,10 +150,15 @@
   /* old TV browsers (Chromium < 84) ignore flex gap: html.nogap gets margins instead */
   .nogap .ov>*+*{margin-top:16px} .nogap #songs>*+*{margin-top:12px} .nogap .row>*{margin:6px}
   .nogap .opt>*+*{margin-left:12px} .nogap #rBreak>*+*{margin-left:18px}
+  .tv *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  .tv #mult .fg,.tv .jd.perf{filter:none} .tv #startBtn,.tv #mult.hot{animation:none}
+  #fps{position:fixed;z-index:20;right:max(10px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));
+    font:600 12px/1 ui-monospace,Menlo,monospace;color:rgba(200,200,210,.45);cursor:pointer;user-select:none;letter-spacing:.02em}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
+<div id="fps" title="click: change graphics profile"></div>
 <div id="vig"></div>
 
 <div id="hud">
@@ -260,14 +265,28 @@ const canvas = $('gl');
 // Mobile tier: lower pixel ratio, no MSAA at high dpr, hard 512px shadows, no clearcoat. 'lowgfx' = forced after a context loss.
 const UA = navigator.userAgent;
 const TVUA = /Tizen|Web0S|webOS|SMART-TV|SmartTV|NetCast|HbbTV|BRAVIA|VIDAA|AFT[A-Z]|CrKey|GoogleTV|Android TV/i.test(UA);
-const MOBILE = TVUA || /Android|iPhone|iPad|Mobile/i.test(UA) || (matchMedia('(pointer:coarse)').matches && Math.min(innerWidth, innerHeight) < 900);
+// Graphics profile: 'pc' (full), 'phone' (light), 'tv' (lightest: TV SoCs have phone-class GPUs driving a big screen).
+// Override with ?gfx=tv|phone|pc|auto (remembered), or click the fps label to cycle.
+const qGfx = new URLSearchParams(location.search).get('gfx');
+if (qGfx) { if (/^(tv|phone|pc)$/.test(qGfx)) localStorage.setItem('bateria.gfx', qGfx); else localStorage.removeItem('bateria.gfx'); }
+let GPU = '';
+try { const g = document.createElement('canvas').getContext('webgl'), x = g && g.getExtension('WEBGL_debug_renderer_info');
+  GPU = x ? String(g.getParameter(x.UNMASKED_RENDERER_WEBGL)) : ''; const lc = g && g.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); } catch (e) {}
+const PHONEUA = !TVUA && (/Android|iPhone|iPad|Mobile/i.test(UA) || (matchMedia('(pointer:coarse)').matches && Math.min(innerWidth, innerHeight) < 900));
+// a big screen with a phone-class GPU and no touch is almost certainly a TV (or a TV stick) whatever its user agent says
+const WEAKGPU = /Mali|PowerVR|Adreno|VideoCore|Vivante|Realtek|MStar|Novatek|SwiftShader|llvmpipe/i.test(GPU);
+const PROFILE = localStorage.getItem('bateria.gfx') || (TVUA ? 'tv' : PHONEUA ? 'phone' : WEAKGPU ? 'tv' : 'pc');
+const TV = PROFILE === 'tv';
+const MOBILE = PROFILE !== 'pc';
+if (TV) document.documentElement.classList.add('tv');
 { const d = document.createElement('div'); d.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute';
   d.appendChild(document.createElement('div')); d.appendChild(document.createElement('div')); document.body.appendChild(d);
   if (d.scrollHeight !== 1) document.documentElement.classList.add('nogap'); d.remove(); }
 const LOWGFX = MOBILE && sessionStorage.getItem('bateria.lowgfx') === '1';
-const R = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE || (window.devicePixelRatio || 1) < 2, powerPreference: MOBILE ? 'default' : 'high-performance' });
+const R = new THREE.WebGLRenderer({ canvas, antialias: !TV && (!MOBILE || (window.devicePixelRatio || 1) < 2), powerPreference: MOBILE ? 'default' : 'high-performance' });
 // TV browsers report dpr 1-2 on a 4K panel with a weak GPU: render at most 1080p-ish
-const PR_MAX = LOWGFX ? 1 : TVUA ? Math.min(1, 1920 / Math.max(1, screen.width * (window.devicePixelRatio || 1))) * (window.devicePixelRatio || 1) : MOBILE ? 1.5 : 2;
+// TV: draw at most ~1280 px wide (720p) and let the TV upscale; fill rate is what kills TV GPUs
+const PR_MAX = TV ? Math.min(1, 1280 / Math.max(1, innerWidth)) : LOWGFX ? 1 : MOBILE ? 1.5 : 2;
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, PR_MAX));
 // adaptive quality: if frames stay slow (>28 ms avg for ~2 s), step down: shadows off, then resolution x0.8 (floor 0.6)
 const GFX = { slow: 0, steps: 0 };
@@ -277,7 +296,8 @@ function gfxWatch(dt) {
   if (GFX.slow < 2) return;
   GFX.slow = 0; GFX.steps++;
   if (R.shadowMap.enabled) { R.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); return; }
-  const pr = R.getPixelRatio(); if (pr > 0.6) { R.setPixelRatio(Math.max(0.6, pr * 0.8)); fit(); }
+  if (rimL.parent) { scene.remove(rimL, rimR); lanes.forEach(L => scene.remove(L.light)); scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); return; }
+  const pr = R.getPixelRatio(), floor = TV ? 0.4 : 0.6; if (pr > floor) { R.setPixelRatio(Math.max(floor, pr * 0.8)); fit(); }
 }
 canvas.addEventListener('webglcontextlost', e => {
   e.preventDefault();
@@ -287,7 +307,7 @@ canvas.addEventListener('webglcontextlost', e => {
 R.outputColorSpace = THREE.SRGBColorSpace;
 R.toneMapping = THREE.ACESFilmicToneMapping;
 R.toneMappingExposure = 0.95;
-R.shadowMap.enabled = !LOWGFX;
+R.shadowMap.enabled = !LOWGFX && !TV;
 R.shadowMap.type = MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05050a);
@@ -489,8 +509,8 @@ key.position.set(0.4, 7.5, 3.6); key.target.position.set(0, 0.6, 0);
 key.castShadow = true; key.shadow.mapSize.setScalar(MOBILE ? 512 : 1024); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
 key.shadow.camera.near = 3; key.shadow.camera.far = 14;
 scene.add(key, key.target);
-const rimL = new THREE.SpotLight(0xff9ab0, 40, 0, 0.7, 0.8, 2); rimL.position.set(-5, 5, -3.5); rimL.target.position.set(-0.5, 0.6, 0); scene.add(rimL, rimL.target);
-const rimR = new THREE.SpotLight(0x9fd0ff, 40, 0, 0.7, 0.8, 2); rimR.position.set(5, 5, -3.5); rimR.target.position.set(0.5, 0.6, 0); scene.add(rimR, rimR.target);
+const rimL = new THREE.SpotLight(0xff9ab0, 40, 0, 0.7, 0.8, 2); rimL.position.set(-5, 5, -3.5); rimL.target.position.set(-0.5, 0.6, 0); scene.add(rimL.target); if (!TV) scene.add(rimL);
+const rimR = new THREE.SpotLight(0x9fd0ff, 40, 0, 0.7, 0.8, 2); rimR.position.set(5, 5, -3.5); rimR.target.position.set(0.5, 0.6, 0); scene.add(rimR.target); if (!TV) scene.add(rimR);
 const front = new THREE.DirectionalLight(0xc8d4ff, 0.5); front.position.set(0, 2, 8); scene.add(front);
 
 // ---------- the kit ----------
@@ -589,7 +609,7 @@ for (const L of lanes) {
   L.wave = new THREE.Mesh(waveGeo, glowMat(c, 0)); L.wave.position.copy(L.pos); L.wave.quaternion.copy(L.quat); L.wave.position.y += 0.012; scene.add(L.wave);
   L.flare = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: c, transparent: true, opacity: 0, blending: add, depthWrite: false, toneMapped: false }));
   L.flare.position.copy(L.pos).add(V(0, 0.05, 0.1)); L.flare.scale.setScalar(L.r * 4); scene.add(L.flare);
-  L.light = new THREE.PointLight(c, 0, 4, 2); L.light.position.copy(L.pos).add(V(0, 0.7, 0.5)); scene.add(L.light);
+  L.light = new THREE.PointLight(c, 0, 4, 2); L.light.position.copy(L.pos).add(V(0, 0.7, 0.5)); if (!TV) scene.add(L.light);
   L.beam = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: beamTex, color: c, transparent: true, opacity: 0.55, blending: add, depthWrite: false, toneMapped: false, fog: false }));
   scene.add(L.beam);
 }
@@ -621,7 +641,7 @@ function tickMesh() {
 }
 
 // ---------- particles ----------
-const PN = 900, pPos = new Float32Array(PN * 3), pCol = new Float32Array(PN * 3), P = [];
+const PN = TV ? 300 : 900, pPos = new Float32Array(PN * 3), pCol = new Float32Array(PN * 3), P = [];
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
 pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
@@ -681,6 +701,21 @@ stickShadow.visible = false; scene.add(stickShadow);
 const stickState = { tilt: Math.PI - 0.62,   // tip up at the pointer, handle down towards the player (TV above the player)
   lean: 0, kick: 0, pos: new THREE.Vector3() };
 const stickPlane = new THREE.Plane();
+
+// ---------- fps label (bottom-right, faint): fps · profile · render scale ----------
+const fpsEl = $('fps'); let fpsN = 0, fpsT0 = 0;
+function fpsTick(now) {
+  fpsN++; if (!fpsT0) fpsT0 = now;
+  if (now - fpsT0 < 500) return;
+  const fps = Math.round(fpsN * 1000 / (now - fpsT0)); fpsN = 0; fpsT0 = now;
+  fpsEl.textContent = fps + ' fps · ' + PROFILE + (localStorage.getItem('bateria.gfx') ? '*' : '') + ' · ' + R.domElement.height + 'p' + (GFX.steps ? ' ↓' + GFX.steps : '');
+}
+fpsEl.addEventListener('click', e => {
+  e.stopPropagation();
+  const order = ['auto', 'tv', 'phone', 'pc'], cur = localStorage.getItem('bateria.gfx') || 'auto', next = order[(order.indexOf(cur) + 1) % order.length];
+  if (next === 'auto') localStorage.removeItem('bateria.gfx'); else localStorage.setItem('bateria.gfx', next);
+  sessionStorage.removeItem('bateria.lowgfx'); location.reload();
+});
 
 // ================= camera framing =================
 let W = 1, H = 1;
@@ -1123,7 +1158,7 @@ if (matchMedia('(hover: hover) and (pointer: fine)').matches) { ptrMode = 'mouse
 // ================= frame loop =================
 let prevT = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - prevT) / 1000); prevT = now; gfxWatch(dt);
+  const dt = Math.min(0.05, (now - prevT) / 1000); prevT = now; gfxWatch(dt); fpsTick(now);
   musicTick();
   const st = state === 'play' ? songTime() : 0;
   const tNow = clock();
@@ -1273,7 +1308,7 @@ function frame(now) {
 }
 fit();
 requestAnimationFrame(frame);
-window.__drums = { startSong, startFree, hitLane, pause, toSelect, get state() { return state; }, get score() { return score; }, get gfx() { return { MOBILE, LOWGFX, pr: R.getPixelRatio(), lost: R.getContext().isContextLost() }; } };
+window.__drums = { startSong, startFree, hitLane, pause, toSelect, get state() { return state; }, get score() { return score; }, get gfx() { return { PROFILE, GPU, TV, MOBILE, LOWGFX, pr: R.getPixelRatio(), lost: R.getContext().isContextLost() }; } };
 </script>
 </body>
 </html>
