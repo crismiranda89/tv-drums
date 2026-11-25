@@ -1,9 +1,9 @@
 # Bateria TV
 
-Mini drum kit for the TV, played with a pointer remote (air mouse).
+3D rhythm drum game for the phone and the TV: hi-hat, snare and floor tom, notes fall onto the drums, hit them on the beat to build combo and multiplier.
 
-- Point and press OK to hit a drum, or aim and flick the remote down like a drumstick.
-- Arrows + OK, or keys 1-8, also work.
-- Modes: free play (optional backing groove) and rhythm (approach rings, score, stars).
+- **TV (pointer remote / air mouse):** the stick follows the pointer, rising from below the screen. Lift it, then drop it onto the drum as the ring lands.
+- **Phone:** tap the drums.
+- Runs on Samsung (Tizen) and LG (webOS) TV browsers; graphics lower themselves on slower devices.
 
-Play: https://crismiranda89.github.io/tv-drums/
+Play: https://crismiranda89.github.io/tv-drums/ · Old free-play kit: https://crismiranda89.github.io/tv-drums/classic.html
