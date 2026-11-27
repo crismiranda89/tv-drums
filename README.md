@@ -7,3 +7,9 @@
 - Runs on Samsung (Tizen) and LG (webOS) TV browsers; graphics lower themselves on slower devices.
 
 Play: https://crismiranda89.github.io/tv-drums/ · Old free-play kit: https://crismiranda89.github.io/tv-drums/classic.html
+
+## Pulse Rail
+
+Neon rhythm rail shooter: the city moves to the music, shoot enemies on the beat with the pointer remote (pistol or kid-friendly shotgun).
+
+Play: https://crismiranda89.github.io/tv-drums/pulserail/ · Earlier versions: `pulserail/pulserail-v1.html` … `pulserail-v6.html`
