@@ -46,6 +46,8 @@
   .tvua #qrBox .qrT{font-size:24px}.tvua #qrBox .qrK{font-size:18px}
   #qrBox .qrs{display:flex;justify-content:center;align-items:flex-start}#qrBox .qrs>div{margin:0 14px}#qrBox .qrL{font-weight:800;font-size:16px;margin:4px 0 6px}
   .tvua #qrBox .qrL{font-size:22px}
+  .probeNoDom #hud,.probeNoDom #reticle,.probeNoDom #lock,.probeNoDom .pop,.probeNoDom #fps,.probeNoDom #recChip,.probeNoDom #missed,.probeNoDom #flash{display:none!important}
+  #benchBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:21;background:#0b0b14;border:2px solid rgba(255,255,255,.3);border-radius:14px;padding:20px 26px;text-align:center;color:#fff;font-weight:800}#benchBox .btn{margin-top:14px}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
     background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;cursor:pointer}
   .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px}
@@ -161,6 +163,7 @@
   <div id="wpnBadge"></div>
 </div>
 <div id="fps" title="Click for the debug overlay"></div><div id="recChip" class="hidden"></div>
+<div id="benchBox" class="hidden"><div class="qrT">Benchmark: the game plays itself for about 2 minutes, then shows the QR codes.</div><button class="btn main" id="benchGo">Start (press OK)</button></div>
 <div id="qrBox" class="hidden"><div class="qrT">Scan both codes with your phone to send the play log to Jarvis <b id="qrN"></b></div><div class="qrs"><div><div class="qrL">1 · Summary</div><canvas id="qrCv"></canvas></div><div><div class="qrL" id="qrL2">2 · Detail</div><canvas id="qrCv2"></canvas></div></div>
   <div class="qrK" id="qrK"></div><div class="row"><button class="btn main" id="qrDone">Sent ✓ remove from TV</button><button class="btn" id="qrNext">Next log</button><button class="btn" id="qrClose">Close</button></div></div>
 <div id="dbg" class="hidden"><div id="dbgHead"></div><div id="dbgVerdict" class="verdict"></div><canvas id="dbgBars" width="560" height="10"></canvas><canvas id="dbgGraph" width="560" height="110"></canvas><div id="dbgBody"></div></div>
@@ -171,7 +174,7 @@
   <div id="songs"></div>
   <div class="row"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button></div>
   <div class="gfxRow">Toy <div class="seg wpnSeg"></div></div>
-  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button></div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button> <button class="btn" id="benchBtn">Benchmark</button></div>
   <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
   <div class="hint" id="hint"></div>
   <div id="vers"></div>
@@ -211,7 +214,7 @@ const $ = id => document.getElementById(id);
 const canvas = $('c');
 const UA = navigator.userAgent;
 const QS = new URLSearchParams(location.search);
-const AUTOPLAY = QS.has('autoplay');
+let AUTOPLAY = QS.has('autoplay');
 const TVUA = /Tizen|Web0S|webOS|SMART-TV|SmartTV|NetCast|HbbTV|BRAVIA|VIDAA|AFT[A-Z]|CrKey|GoogleTV|Android TV/i.test(UA);
 const LGTV = /Web0S|webOS|NetCast/i.test(UA);
 // ---------- graphics profile: 'tv' = Low, 'phone' = Medium, 'pc' = High ----------
@@ -236,7 +239,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K4', KIDGAME = true;
+const VERSION = 'K5', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1168,7 +1171,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v4 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v5 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1279,9 +1282,11 @@ function dbgUpdate(dt) {
 // ---------- play recorder (v8): the game logs its own performance and sends it to Jarvis, no photos needed ----------
 // Record plays = On: every song is logged (1 sample per second + one automatic Measure on the first recorded song),
 // kept on this device (localStorage) and sent to Jarvis at the end of the song.
-const RKEY = 'pulserail.rec', LKEY = 'pulserail.logq';
+const RKEY = 'pulserailkids.rec', LKEY = 'pulserailkids.logq';
 const LOG_URL = /^192\.168\.68\.200(:8444)?$/.test(location.host) ? '/api/pulserail/log' : 'https://192.168.68.200:8444/api/pulserail/log';
-let REC = QS.has('rec') ? QS.get('rec') !== '0' : localStorage.getItem(RKEY) === '1';
+let REC = QS.has('rec') ? QS.get('rec') !== '0' : localStorage.getItem(RKEY) !== '0';   // test builds: on unless switched off
+{ const q0 = (() => { try { return JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { return []; } })(), keep = q0.filter(r => r && r.version === VERSION);
+  if (keep.length !== q0.length) localStorage.setItem(LKEY, JSON.stringify(keep)); }   // old versions' logs were re-sent again and again
 let rec = null, recMeasured = false, recChipT = 0;
 const RA = { n: 0, dt: [], lg: 0, fx: 0, am: 0, rd: 0, gpu: 0, gn: 0, calls: 0, tris: 0, t: 0 };
 function recChip(text, secs) { const c = $('recChip'); c.textContent = text; c.classList.toggle('hidden', !text); recChipT = secs || 0; }
@@ -1318,13 +1323,36 @@ function recTick(dtRaw, lg, fx, am, rd) {
     lvl: Q.lvl, pr: +Q.pr.toFixed(2), canvas: R.domElement.width + 'x' + R.domElement.height, enemies: live.length, shots: bullets.length,
     shards: shards.filter(q => q.life > 0).length, sec, probe: probe ? probe.label : '', state });
   Object.assign(RA, { n: 0, dt: [], lg: 0, fx: 0, am: 0, rd: 0, gpu: 0, gn: 0, calls: 0, tris: 0, t });
-  $('recChip').textContent = '● REC ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + (probe ? ' · measuring' : '');
+  $('recChip').textContent = (BENCH ? '● BENCH ' + benchLabel + ' · ' : '● REC ') + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + (probe ? ' · measuring' : '');
 }
+// ---------- benchmark (v11): the bot plays one fixed run and the log comes out as QR codes, nobody has to play ----------
+let BENCH = false, benchStage = 0, benchT = 0, benchLabel = '';
+const BENCH_LV = [3, 6, 8];
+function benchBegin() {
+  if (BENCH || state === 'play') return; BENCH = true; AUTOPLAY = true; autoTune = false; setLevel(0); REC = true; recMeasured = false;
+  benchStage = 0; benchLabel = 'warm-up'; $('benchBox').classList.add('hidden'); startSong(0);
+}
+function benchTick() {
+  const t = (performance.now() - rec.t0) / 1000, ws = Object.keys(WPN), lv = BENCH_LV.length;
+  if (benchStage === 0 && t >= 8) { benchStage = 1; rec.frames = []; recEvent('bench L0 (detail from here)'); benchLabel = 'steady'; }
+  else if (benchStage === 1 && t >= 12 && !recMeasured) { recMeasured = true; recEvent('measure start'); startProbe(true); benchLabel = 'measuring'; }
+  else if (benchStage === 1 && recMeasured && !probe) { benchStage = 2; benchT = t; setLevel(BENCH_LV[0]); recEvent('bench L' + BENCH_LV[0]); benchLabel = 'L' + BENCH_LV[0]; }
+  else if (benchStage === 1 && probe) benchLabel = 'measuring';
+  else if (benchStage >= 2 && benchStage < 2 + lv && t - benchT >= 6) {
+    benchStage++; benchT = t;
+    if (benchStage < 2 + lv) { setLevel(BENCH_LV[benchStage - 2]); recEvent('bench L' + BENCH_LV[benchStage - 2]); benchLabel = 'L' + BENCH_LV[benchStage - 2]; }
+    else { setLevel(0); setWeapon(ws[0]); recEvent('bench L0 toy ' + ws[0]); benchLabel = ws[0]; }
+  } else if (benchStage >= 2 + lv && t - benchT >= 4) {
+    const k = benchStage - 1 - lv; benchStage++; benchT = t;
+    if (k < ws.length) { setWeapon(ws[k]); recEvent('bench toy ' + ws[k]); benchLabel = ws[k]; } else { benchLabel = 'done'; endSongBench(); }
+  }
+}
+function endSongBench() { recEvent('bench done'); const r = rec; if (r) r.benchDone = true; endSong(); }
 function recStop(why) {
   if (!rec) return; const r = rec; rec = null; if (probe) { probe.i = probe.steps.length; probeNext(); }
   const S = r.samples.filter(x => x.state === 'play'), all = S.length ? S : r.samples, mean = k => all.length ? Math.round(all.reduce((a, x) => a + (x[k] || 0), 0) / all.length * 10) / 10 : 0;
   const cpu = mean('game') + mean('fx') + mean('aim') + mean('submit'), fr = mean('avg'), top = r.probes.length ? CATS.map((n, i) => [n, r.probes[0][i] || 0]).slice(1).sort((a, b) => b[1] - a[1])[0] : null;
-  r.ended = new Date().toISOString(); r.why = why; r.stats = Object.assign({}, stats);
+  r.ended = new Date().toISOString(); r.why = r.benchDone ? 'bench' : why; r.stats = Object.assign({}, stats);
   r.summary = { version: VERSION, profile: PROFILE, fps: mean('fps'), p95: mean('p95'), worst1: all.length ? Math.max(...all.map(x => x.max)) : 0,
     lvl: all.length ? all[all.length - 1].lvl : 0, secs: r.samples.length,
     verdict: fr < 18.5 ? 'smooth' : cpu > fr * 0.6 ? 'cpu-bound' : 'gpu-bound' + (top ? ' (top layer ' + top[0] + ' ' + top[1].toFixed(1) + ' ms)' : '') };
@@ -1338,8 +1366,8 @@ function sendLogs() {
   recChip('sending log…', 0);
   const one = q[0], body = JSON.stringify(one);
   fetch(LOG_URL, { method: 'POST', mode: LOG_URL[0] === '/' ? 'same-origin' : 'no-cors', headers: { 'Content-Type': 'text/plain' }, body })
-    .then(() => { const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
-    .catch(() => { recChip('log saved on this TV · Jarvis not reachable: use Send log by phone', 12); recInfo(); });
+    .then(() => { if (BENCH) { BENCH = false; setTimeout(openQr, 1500); } const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
+    .catch(() => { recChip('log saved on this TV · Jarvis not reachable: use Send log by phone', 12); recInfo(); if (BENCH) { BENCH = false; setTimeout(openQr, 1500); } });
 }
 // ---------- send by phone (v9): the TV shows the log as a QR code, the phone opens a Jarvis page that uploads it ----------
 // A QR holds ~2 KB, so the QR carries a digest: 5 s buckets (10/20 s for long plays), the Measure result, device and events.
@@ -1361,7 +1389,8 @@ function digest(r, B) {
   return { g: 'pr', v: r.version, at: r.started, why: r.why, d: { ua: r.device.ua, gpu: r.device.gpu, p: r.device.profile, st: r.device.stored, sc: r.device.screen, dpr: r.device.dpr, tq: r.device.timerQuery ? 1 : 0 },
     s: { at: r.settings.autoTune ? 1 : 0, k: r.settings.kids ? 1 : 0, w: r.settings.weapon, song: r.settings.song }, sm: r.summary,
     st: [st.score, st.kills, st.total, st.hurt, st.failed ? 1 : 0],
-    pb: (r.probes || []).map(p => { const o = [p.t, r1(p.base || 0), r1(p.half || 0)]; for (let i = 1; i < CATS.length; i++) o.push(r1(p[i] || 0)); return o; }),
+    pb: (r.probes || []).map(p => { const o = [p.t, r1(p.base || 0), r1(p.half || 0)]; for (let i = 1; i < CATS.length; i++) o.push(r1(p[i] || 0));
+      const sl = p.slow || {}; o.push(r1(p.overlays || 0), r1(p.empty || 0), sl.base, sl.half, sl.overlays, sl.empty); return o; }),
     ev: (r.events || []).slice(0, 24).map(e => [e.t, e.what]), bs: B, b };
 }
 // QR 2 (v10): as many single frames as fit in one QR (version 40, ~2.9 KB), from the start of the recording.
@@ -1392,7 +1421,7 @@ function detailUrl(r) {
 }
 function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function qrUrl(r) {
-  for (const B of [5, 10, 20, 40]) { const u = JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(digest(r, B))); if (u.length < 1500) return u; }
+  for (const B of [3, 6, 12, 24, 48]) { const u = JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(digest(r, B))); if (u.length <= 2900) return u; }
   const d = digest(r, 60); d.ev = []; return JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(d));
 }
 let qrI = 0, qrOpen = false, qrLib = null;
@@ -1414,7 +1443,7 @@ function drawQr() {
   $('qrL2').textContent = '2 · Detail: ' + dt.frames + ' frames, first ' + dt.secs + ' s' + (dt.of ? ' (all)' : '');
   const sm = r.summary || {};
   $('qrN').textContent = (qrI + 1) + ' / ' + q.length;
-  $('qrK').textContent = (r.started || '').slice(0, 16).replace('T', ' ') + ' · ' + (sm.fps || '?') + ' fps · ' + (sm.secs || 0) + ' s · phone must be on the home Wi-Fi';
+  $('qrK').textContent = (typeof r.version === 'number' ? 'v' : '') + r.version + ' · ' + ((r.settings && r.settings.song) || '') + ' · ' + (r.started ? new Date(r.started).toLocaleString().slice(0, 17) : '') + ' · ' + (sm.fps || '?') + ' fps · ' + (sm.secs || 0) + ' s' + (r.why === 'bench' ? ' · benchmark' : '') + ' · phone on the home Wi-Fi';
   $('qrNext').classList.toggle('hidden', q.length < 2);
 }
 function openQr() { if (!logQueue().length) return; loadQr(() => { qrOpen = true; $('qrBox').classList.remove('hidden'); drawQr(); setTimeout(() => $('qrDone').focus(), 50); }); }
@@ -1431,30 +1460,32 @@ let probeRes = null;
 function startProbe(silent) {
   if (probe) return; if (!dbgOn && !silent) setDebug(true); recEvent('measure');
   const steps = [], cats = []; for (let i = 1; i < CATS.length; i++) cats.push(i);
-  steps.push({ base: 1 }); cats.forEach(c => { steps.push({ cat: c }); steps.push({ base: 1 }); }); steps.push({ half: 1 }); steps.push({ base: 1 });
+  steps.push({ base: 1 }); cats.forEach(c => { steps.push({ cat: c }); steps.push({ base: 1 }); }); steps.push({ key: 'half' }); steps.push({ base: 1 });
+  steps.push({ key: 'overlays' }); steps.push({ base: 1 }); steps.push({ key: 'empty' }); steps.push({ base: 1 });
   probe = { steps, i: -1, t: 0, acc: 0, n: 0, res: {}, bases: [], vals: [], label: '' }; probeRes = probeRes || {}; probeNext();
 }
 function probeNext() {
-  const p = probe; cam.layers.enableAll(); if (p.halfOn) { R.setPixelRatio(Q.pr); fit(); p.halfOn = false; }
+  const p = probe; cam.layers.enableAll(); if (p.halfOn) { R.setPixelRatio(Q.pr); fit(); p.halfOn = false; } document.body.classList.remove('probeNoDom'); p.empty = false;
   p.i++; if (p.i >= p.steps.length) { finishProbe(); return; }
   const s = p.steps[p.i]; p.t = 0; p.acc = 0; p.n = 0; p.vals = [];
-  if (s.cat) { cam.layers.disable(s.cat); p.label = 'hide ' + CATS[s.cat]; } else if (s.half) { R.setPixelRatio(Q.pr * 0.5); fit(); p.halfOn = true; p.label = 'half resolution'; } else p.label = 'everything on';
+  if (s.cat) { cam.layers.disable(s.cat); p.label = 'hide ' + CATS[s.cat]; } else if (s.key === 'half') { R.setPixelRatio(Q.pr * 0.5); fit(); p.halfOn = true; p.label = 'half resolution'; }
+  else if (s.key === 'overlays') { document.body.classList.add('probeNoDom'); p.label = 'overlays hidden'; } else if (s.key === 'empty') { p.empty = true; p.label = 'empty frame'; } else p.label = 'everything on';
 }
 function probeTick(dt, cpuMs) {
   const p = probe; p.t += dt; if (p.t < 0.3) return;
   const fms = TQ && gpuMs >= 0 ? Math.max(gpuMs, cpuMs) : Math.max(dt * 1000, cpuMs);
   p.vals.push(fms);
-  if (p.t < 1.1) return;
-  const s = p.steps[p.i], vs = p.vals.slice().sort((a, b) => a - b), v = vs[vs.length >> 1];
-  if (s.base) p.bases.push({ i: p.i, v }); else p.res[s.cat || 'half'] = { i: p.i, v };
+  if (p.t < 1.6) return;   // v11: mean frame time + share of slow frames (> 20 ms); the median hid the slow frames under vsync
+  const s = p.steps[p.i], n = p.vals.length, v = p.vals.reduce((a, b) => a + b, 0) / n, slow = Math.round(p.vals.filter(x => x > 20).length / n * 100);
+  if (s.base) p.bases.push({ i: p.i, v, slow }); else p.res[s.cat || s.key] = { i: p.i, v, slow };
   probeNext();
 }
 function finishProbe() {
   const p = probe, base = p.bases.reduce((a, b) => a + b.v, 0) / Math.max(1, p.bases.length);
   const near = i => { const b = p.bases.filter(x => Math.abs(x.i - i) === 1); return b.length ? b.reduce((a, x) => a + x.v, 0) / b.length : base; };
-  probeRes = { base };
-  for (const k in p.res) probeRes[k] = Math.max(0, near(p.res[k].i) - p.res[k].v);
-  probe = null; cam.layers.enableAll(); dbgT = 0;
+  probeRes = { base, slow: { base: Math.round(p.bases.reduce((a, b) => a + b.slow, 0) / Math.max(1, p.bases.length)) } };
+  for (const k in p.res) { probeRes[k] = Math.max(0, near(p.res[k].i) - p.res[k].v); probeRes.slow[k] = p.res[k].slow; }
+  probe = null; cam.layers.enableAll(); document.body.classList.remove('probeNoDom'); dbgT = 0;
   if (rec) { rec.probes.push(Object.assign({ t: +((performance.now() - rec.t0) / 1000).toFixed(1) }, probeRes)); recEvent('measure done'); }
 }
 
@@ -1663,9 +1694,10 @@ function frame(now) {
   }
   const tD = performance.now(), gq = gpuBegin();
   rdOn = dbgOn || !!rec; if (rdOn) RD.fill(0);
-  R.render(scene, cam);
+  if (probe && probe.empty) R.clear(); else R.render(scene, cam);
   gpuEnd(gq); const tE = performance.now();
   if (rec) recTick(dtRaw, tB - tA, tC - tB, tD - tC, tE - tD);
+  if (BENCH && rec && state === 'play') benchTick();
   if (recChipT > 0) { recChipT -= dt; if (recChipT <= 0) recChip(''); }
   if (dbgOn || probe) {
     if (TQ) gpuPoll();
@@ -1686,12 +1718,21 @@ function autoTick(beat) {
   _pp.copy(target).project(cam); setAimPx((_pp.x + 1) / 2 * innerWidth, (1 - _pp.y) / 2 * innerHeight, false); fire();
 }
 
+// ---------- benchmark start: button, or ?bench=1 (asks for one OK press if audio needs a user gesture) ----------
+$('benchBtn').onclick = e => { e.stopPropagation(); initAudio(); benchBegin(); };
+$('benchGo').onclick = e => { e.stopPropagation(); initAudio(); benchBegin(); };
+if (QS.has('bench')) setTimeout(() => {
+  try { initAudio(); } catch (e) {}
+  if (ac && ac.state === 'running') benchBegin(); else { $('benchBox').classList.remove('hidden'); setTimeout(() => $('benchGo').focus(), 50);
+    if (ac) ac.resume().then(() => { if (ac.state === 'running' && !BENCH) benchBegin(); }).catch(() => {}); }
+}, 1500);
+
 // ---------- boot ----------
 buildWorld(0); buildEnemyGeos(PAL); applyPalMats(); warmShaders(); renderSongs(); ctlLabel(); hintText(); showOnly('title');
 setWeapon(weapon); setLevel(0); if (QS.has('debug') || localStorage.getItem(DKEY) === '1') setDebug(true);
 requestAnimationFrame(frame);
 window.__pr = { get state() { return state; }, stats, startSong, fire, setAim: setAimPx, get beat() { return songBeat(); }, get profile() { return PROFILE; },
-  get live() { return live.length; }, openQr, detailUrl, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
+  get live() { return live.length; }, openQr, benchBegin, get bench() { return { on: BENCH, stage: benchStage, label: benchLabel }; }, detailUrl, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
 </script>
 </body>
 </html>
