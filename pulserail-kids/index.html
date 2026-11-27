@@ -236,7 +236,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K3', KIDGAME = true;
+const VERSION = 'K4', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -261,8 +261,9 @@ function setLevel(l) {
 function applyQ() {
   if (motes) motes.visible = Q.motes;
   haloMat.visible = haloHot.visible = bGlowMat.visible = Q.halos; rimMat.visible = Q.rims;
-  if (scene.fog) scene.fog.far = SEG * (Q.far - 1.2);
+  fogTarget = SEG * (Q.far - 1.2);
 }
+let fogTarget = 0;
 const GOV = { acc: 0, n: 0, slowWin: 0, fastWin: 0, cool: 0, ceil: 99, ceilT: 0 };
 function gfxWatch(dt) {   // 1 s windows: 2 slow windows step down, 6 fast windows step up
   if (document.hidden || dt > 0.25 || probe) return;
@@ -403,9 +404,8 @@ function buildSegment(pal, rnd, idx) {
     put(lit, BOXN, mtx(s * 7.25, -0.35, -SEG / 2, 2.5, 1, SEG), pal.walk);
     put(neon, BOXN, mtx(s * 6.0, 0.17, -SEG / 2, 0.09, 0.05, SEG), pal.neonB);
     // street lamps every half segment
-    for (let k = 0; k < 2; k++) { const z = -4 - k * 12;   // lollipop lamps + round trees
-      put(lit, BOXN, mtx(s * 6.6, 2.2, z, 0.14, 4.4, 0.14), 0xffffff, 0.95);
-      put(neon, ICO0, mtx(s * 6.6, 4.7, z, 0.42, 0.42, 0.18), (k + idx) % 2 ? pal.neonA : pal.neonB);
+    for (let k = 0; k < 2; k++) { const z = -4 - k * 12;   // v4: no lamps; round trees + little flower patches on the grass
+      for (let f = 0; f < 4; f++) put(lit, ICO0, mtx(s * (8.7 + rnd() * 0.9), 0.22, z - 2 + rnd() * 5, 0.17, 0.13, 0.17, 0, rnd() * 3, 0), pal.bloom[Math.floor(rnd() * pal.bloom.length)], 1.15);
       put(lit, BOXN, mtx(s * 7.4, 0.9, z - 6, 0.28, 1.8, 0.28), 0x9a6a4a);
       put(lit, ICO0, mtx(s * 7.4, 2.3, z - 6, 1.05, 1.0, 1.05, 0, rnd() * 3, 0), rnd() < 0.5 ? 0x5ccf52 : 0x7fe06a); }
   }
@@ -480,11 +480,11 @@ function buildWorld(palIdx) {
     motes = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.14, transparent: true, opacity: 0.7, map: GLOW, depthWrite: false, blending: THREE.AdditiveBlending }));
     world.add(tag(motes, C.dust));
   } else motes = null;
-  applyQ(); placeSegments(cam.position.z);
+  applyQ(); scene.fog.far = fogTarget; placeSegments(cam.position.z);
 }
 function placeSegments(camZ) { const base = Math.ceil(camZ / SEG) * SEG + SEG; segments.forEach((s, i) => { s.position.z = base - i * SEG; }); }
 function recycle(camZ) {
-  for (const s of segments) { if (s.position.z - SEG > camZ + 2) s.position.z -= TIER.segs * SEG; s.visible = camZ - s.position.z < (Q.far - 0.6) * SEG; }
+  for (const s of segments) { if (s.position.z - SEG > camZ + 2) s.position.z -= TIER.segs * SEG; s.visible = camZ - s.position.z < scene.fog.far + 0.6 * SEG; }
 }
 
 // ---------- enemies ----------
@@ -658,13 +658,15 @@ const gunGlow = new THREE.MeshBasicMaterial({ vertexColors: true });   // v3: ca
   [[0.11, 0.03, 0xff4f9a], [0.085, 0.034, 0xffffff], [0.062, 0.038, 0xffd23d], [0.04, 0.042, 0xffffff], [0.02, 0.046, 0x31c8ff]].forEach(([r, w, c]) =>
     put(gl, cylX(r, w, 16), mtx(0, 0.07, 0.29, 1, 1, 1), c));
   gunModels.lolly = mk(a, null, gl);
-  // magic wand: purple stick, gold grip, a glowing star on the tip
+  // v4 magic wand: birch stick (white wood, dark bark marks), carved wooden handle, rounded white tip
   a = Acc(); gl = Acc();
-  put(a, cylZ(0.02, 0.012, 0.42, 6), mtx(0, 0, 0.08, 1, 1, 1), 0x6a3ab8);
-  put(a, cylZ(0.026, 0.026, 0.09, 8), mtx(0, 0, -0.09, 1, 1, 1), 0xffc83a);
-  put(a, cylZ(0.024, 0.024, 0.015, 8), mtx(0, 0, 0.02, 1, 1, 1), 0xffc83a);
-  put(gl, ICO1, mtx(0, 0, 0.33, 0.03, 0.03, 0.03), 0xfff3a0);
-  for (let i = 0; i < 5; i++) { const t = i * Math.PI * 2 / 5; put(gl, new THREE.CylinderGeometry(0, 0.022, 0.06, 4), mtx(0, Math.cos(t) * 0.045, 0.33 + Math.sin(t) * 0.045, 1, 1, 1, t, 0, 0), 0xffe14d); }
+  put(a, cylZ(0.016, 0.009, 0.36, 8), mtx(0, 0, 0.13, 1, 1, 1), 0xf1ebdc);
+  [[0.04, 0.3], [0.11, -0.5], [0.17, 1.2], [0.23, 2.4], [0.27, -1.8]].forEach(([z, r]) => {
+    const rr = 0.0165 - (z - 0.0) * 0.022; put(a, BOXN, mtx(Math.cos(r) * (rr - 0.001), Math.sin(r) * (rr - 0.001), z, 0.004, 0.0035, 0.022, 0, 0, r), 0x6a5a4c); });
+  put(a, cylZ(0.023, 0.02, 0.13, 10), mtx(0, 0, -0.1, 1, 1, 1), 0x7a4a26);
+  for (const z of [-0.045, -0.155]) put(a, cylZ(0.026, 0.026, 0.014, 10), mtx(0, 0, z, 1, 1, 1), 0x5a3318);
+  put(a, ICO1, mtx(0, 0, -0.175, 0.024, 0.024, 0.02), 0x5a3318);
+  put(gl, ICO1, mtx(0, 0, 0.315, 0.011, 0.011, 0.013), 0xffffff);
   gunModels.wand = mk(a, null, gl);
   // water cannon: chunky blue body, water tank on top, orange nozzle
   a = Acc(); n = Acc();
@@ -967,7 +969,7 @@ const WKEY = 'pulserailkids.weapon';
 const WIDS = ['lolly', 'wand', 'water', 'laser'];
 const WPN = {
   lolly: { name: 'Lollipop', short: 'Lollipop', cone: 0.1, max: 1, gap: 90, pellets: 1, muzzle: 0.41, mt: 0.07, ms: 0.45, mc: 0xffd23d, kick: 0.9, snd: 'star', bolt: { cols: [0xffe14d, 0xff7ac8, 0x7fe0ff, 0x8de86b], size: 0.9, L: 0.16 } },
-  wand: { name: 'Magic wand', short: 'Wand', cone: 0.15, max: 2, gap: 140, pellets: 2, muzzle: 0.37, mt: 0.09, ms: 0.6, mc: 0xc77dff, kick: 0.6, snd: 'spell', tr: { col: 0xc77dff, w: 0.5, L: 0.2 }, bolt: { cols: [0xc77dff, 0xff7ac8, 0xffe14d], size: 0.55, L: 0.24, n: 3, wob: 1 } },
+  wand: { name: 'Magic wand', short: 'Wand', cone: 0.15, max: 2, gap: 140, pellets: 2, muzzle: 0.33, mt: 0.09, ms: 0.6, mc: 0xc77dff, kick: 0.6, snd: 'spell', tr: { col: 0xc77dff, w: 0.5, L: 0.2 }, bolt: { cols: [0xc77dff, 0xff7ac8, 0xffe14d], size: 0.55, L: 0.24, n: 3, wob: 1 } },
   water: { name: 'Water cannon', short: 'Water', cone: 0.24, max: 3, gap: 180, pellets: 9, muzzle: 0.27, mt: 0.09, ms: 0.55, mc: 0x9fe8ff, kick: 1.6, snd: 'blast', dmg2: true, tr: { col: 0x7ad8ff, w: 1.7, L: 0.16 } },
   laser: { name: 'Laser', short: 'Laser', cone: 0.045, max: 1, gap: 60, pellets: 1, muzzle: 0.26, mt: 0.06, ms: 0.38, mc: 0x6dff8a, kick: 0.8, snd: 'laser', tr: { col: 0x6dff8a, w: 0.7, L: 0.17 } } };
 let weapon = WIDS.indexOf(QS.get('weapon')) >= 0 ? QS.get('weapon') : WIDS.indexOf(localStorage.getItem(WKEY)) >= 0 ? localStorage.getItem(WKEY) : 'lolly';
@@ -1166,7 +1168,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v3 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v4 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1559,11 +1561,12 @@ function frame(now) {
   const barPulse = Math.pow(1 - ((beat / 4) % 1 + 1) % 1, 4);
   const drop = playing && sec === 'D' ? 1 : 0;
   neonKick = Math.max(0, neonKick - dt * 3);
-  neonMat.color.setScalar(Math.min(1.6, 0.9 + pulse * 0.55 + barPulse * 0.3 * drop + neonKick * 0.45));
-  winMat.color.setScalar(Math.min(1.3, 0.85 + pulse * 0.25 * (0.5 + drop) + neonKick * 0.15));
+  if (scene.fog && fogTarget) scene.fog.far += (fogTarget - scene.fog.far) * Math.min(1, dt * 0.7);
+  neonMat.color.setScalar(1);   // v4 kids: calm, no blinking
+  winMat.color.setScalar(1);
   // drops: the sky warms toward the neon colour and the sun breathes with the bar
   dropS += (drop - dropS) * Math.min(1, dt * 3);
-  NEONU.uWave.value = playing ? 0.55 + 0.6 * dropS : 0; NEONU.uBeat.value = frac; NEONU.uCamZ.value = cam.position.z;
+  NEONU.uWave.value = 0; NEONU.uBeat.value = frac; NEONU.uCamZ.value = cam.position.z;
   updSpeed(dt, dropS);
   if (skyMat) { const a = dropS * (0.18 + 0.22 * barPulse); skyMat.color.setRGB(1 + a * (_dropC.r - 0.3), 1 + a * (_dropC.g - 0.3), 1 + a * (_dropC.b - 0.3));
     sunMesh.scale.setScalar(1 + 0.07 * pulse * (0.4 + dropS) + 0.08 * barPulse * dropS); }
