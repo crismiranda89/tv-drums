@@ -39,6 +39,8 @@
   .pop{position:fixed;left:0;top:0;z-index:5;pointer-events:none;will-change:transform,opacity;font-weight:900;font-style:italic;font-size:22px;white-space:nowrap;
     text-shadow:0 0 10px rgba(0,0,0,.8)}
   .pop small{display:block;font-size:12px;letter-spacing:.2em;color:#ffe36e;text-align:center}
+  #recChip{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9;font:700 13px ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:6px;pointer-events:none}
+  .tvua #recChip{font-size:18px;bottom:4vh;padding:8px 14px}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
     background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;cursor:pointer}
   .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px}
@@ -132,7 +134,7 @@
   <button id="pauseBtn" aria-label="Pause">II</button>
   <div id="wpnBadge"></div>
 </div>
-<div id="fps" title="Click for the debug overlay"></div>
+<div id="fps" title="Click for the debug overlay"></div><div id="recChip" class="hidden"></div>
 <div id="dbg" class="hidden"><div id="dbgHead"></div><div id="dbgVerdict" class="verdict"></div><canvas id="dbgBars" width="560" height="10"></canvas><canvas id="dbgGraph" width="560" height="110"></canvas><div id="dbgBody"></div></div>
 
 <div id="title" class="ov">
@@ -141,6 +143,7 @@
   <div id="songs"></div>
   <div class="row"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button></div>
   <div class="gfxRow">Weapon <div class="seg wpnSeg"></div> Kids mode <div class="seg kidSeg"></div></div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span></div>
   <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
   <div class="hint" id="hint"></div>
   <div id="vers"></div>
@@ -153,6 +156,7 @@
   <button class="btn" id="quitBtn">Songs</button>
   <button class="btn" id="measureBtn">Measure graphics cost</button>
   <div class="gfxRow">Weapon <div class="seg wpnSeg"></div> Kids mode <div class="seg kidSeg"></div></div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span></div>
   <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
 </div>
 <div id="results" class="ov hidden">
@@ -204,7 +208,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 6;
+const VERSION = 8;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -224,7 +228,7 @@ function qFor(l) {
 function sameQ(a, b) { return a.pr === b.pr && a.motes === b.motes && a.halos === b.halos && a.far === b.far && a.rims === b.rims && a.shards === b.shards; }
 function setLevel(l) {
   l = Math.max(0, Math.min(QSTEPS.length - 1, l)); const n = qFor(l); const prChanged = n.pr !== Q.pr;
-  Object.assign(Q, n, { lvl: l }); applyQ(); if (prChanged) { R.setPixelRatio(Q.pr); fit(); }
+  Object.assign(Q, n, { lvl: l }); applyQ(); recEvent('quality L' + l + ' ' + QSTEPS[l]); if (prChanged) { R.setPixelRatio(Q.pr); fit(); }
 }
 function applyQ() {
   if (motes) motes.visible = Q.motes;
@@ -238,8 +242,8 @@ function gfxWatch(dt) {   // 1 s windows: 2 slow windows step down, 6 fast windo
   if (GOV.acc < 1) return;
   const avg = GOV.acc / GOV.n; GOV.acc = 0; GOV.n = 0;
   if (!autoTune || GOV.cool > 0) return;
-  if (avg > 0.024) { GOV.fastWin = 0; if (++GOV.slowWin >= 2) { GOV.slowWin = 0; stepQ(1); } }
-  else if (avg < 0.0185) { GOV.slowWin = 0; if (++GOV.fastWin >= 6 && Q.lvl > 0 && Q.lvl - 1 < GOV.ceil) { GOV.fastWin = 0; stepQ(-1); } }
+  if (avg > 0.0195) { GOV.fastWin = 0; if (++GOV.slowWin >= 2) { GOV.slowWin = 0; stepQ(1); } }
+  else if (avg < 0.0172) { GOV.slowWin = 0; if (++GOV.fastWin >= 6 && Q.lvl > 0 && Q.lvl - 1 < GOV.ceil) { GOV.fastWin = 0; stepQ(-1); } }
   else { GOV.slowWin = 0; GOV.fastWin = 0; }
 }
 let lastUp = -1e9;
@@ -404,14 +408,14 @@ function buildSky(pal) {
     cols.push(c.r, c.g, c.b); }
   sg.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   const sky = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
-  sky.renderOrder = -3; grp.add(sky);
+  sky.renderOrder = 20; grp.add(sky);   // v7: drawn after the city + skyline so covered sky pixels are never painted
   const sun = new THREE.Mesh(new THREE.PlaneGeometry(56, 56), new THREE.MeshBasicMaterial({ map: sunTex(pal), transparent: true, fog: false, depthWrite: false }));
   sun.position.set(0, 14, -135); sun.renderOrder = -2; grp.add(sun); skyMat = sky.material; sunMesh = sun; _dropC.set(pal.neonA);
   const sk = Acc(), r = rng(7), skc = new THREE.Color(pal.sky[2]).lerp(new THREE.Color(pal.bldg[0]), 0.75);
   for (let a = 0; a < 360; a += 3) { const ang = a * Math.PI / 180, h = 6 + r() * 22, R = 125;
     put(sk, BOXN, mtx(Math.sin(ang) * R, h / 2 - 2, -Math.cos(ang) * R, 7, h, 7, 0, -ang, 0), skc); }
-  const skl = new THREE.Mesh(bake(sk), new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, depthWrite: false }));
-  skl.renderOrder = -1; grp.add(skl);
+  const skl = new THREE.Mesh(bake(sk), new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
+  skl.renderOrder = 19; grp.add(skl);   // v7: writes depth so the sky behind it is skipped
   return tag(grp, C.sky);
 }
 function buildWorld(palIdx) {
@@ -765,6 +769,7 @@ function startSong(i) {
   initAudio(); if (ac.state === 'suspended') ac.resume();
   if (run) stopRun();
   song = SONGS[i]; song.idx = i;
+  if (REC) setTimeout(recStart, 0);
   buildWorld(song.pal); buildEnemyGeos(PAL); applyPalMats(); warmShaders();
   chart = makeChart(song); live.forEach(e => scene.remove(e.g)); live = []; bullets.forEach(b => scene.remove(b.g)); bullets = [];
   resetStats(); stats.total = chart.length;
@@ -776,6 +781,7 @@ function startSong(i) {
   if (ctl === 'pistol' && localStorage.getItem('pulserail.cal') === null && !AUTOPLAY) startCalib(true);
 }
 function stopRun() {
+  if (rec) recStop('left the song');
   if (!run) return; const r = run; run = null;
   try { r.bus.gain.setValueAtTime(r.bus.gain.value, ac.currentTime); r.bus.gain.linearRampToValueAtTime(0, ac.currentTime + 0.08); setTimeout(() => r.bus.disconnect(), 300); } catch (e) {}
 }
@@ -950,6 +956,7 @@ function missText(t) { const m = $('missed'); m.textContent = t || 'COMBO LOST';
 // ---------- end of song / results ----------
 function endSong() {
   if (state !== 'play') return;
+  recEvent(stats.failed ? 'failed' : 'song end'); setTimeout(() => recStop(stats.failed ? 'failed' : 'song end'), 400);
   state = 'results';
   if (stats.failed && run) { run.overBeat = songBeat(); run.over = true; bullets.forEach(b => scene.remove(b.g)); bullets = []; live.forEach(e => scene.remove(e.g)); live = []; }
   if (stats.failed && ac) { musicBus.gain.setValueAtTime(musicBus.gain.value, ac.currentTime); musicBus.gain.linearRampToValueAtTime(0, ac.currentTime + 1.2); }
@@ -1049,7 +1056,7 @@ function setAutoTune(on) {
 }
 document.querySelectorAll('.autoSeg').forEach(seg => { segBtn(seg, 'On', autoTune, () => setAutoTune(true)); segBtn(seg, 'Off', !autoTune, () => setAutoTune(false)); });
 document.querySelectorAll('.dbgSeg').forEach(seg => { segBtn(seg, 'On', false, () => setDebug(true)); segBtn(seg, 'Off', true, () => setDebug(false)); });
-function setKids(on) { KIDS = on; localStorage.setItem(KKEY, on ? '1' : '0');
+function setKids(on) { KIDS = on; recEvent('kids ' + on); localStorage.setItem(KKEY, on ? '1' : '0');
   document.querySelectorAll('.kidSeg button').forEach((b, i) => b.classList.toggle('on', (i === 0) === on)); }
 document.querySelectorAll('.kidSeg').forEach(seg => { segBtn(seg, 'On', KIDS, () => setKids(true)); segBtn(seg, 'Off', !KIDS, () => setKids(false)); });
 document.querySelectorAll('.wpnSeg').forEach(seg => ['pistol', 'shotgun'].forEach(w => segBtn(seg, WPN[w].name, weapon === w, () => setWeapon(w), w)));
@@ -1165,10 +1172,75 @@ function dbgUpdate(dt) {
   h += '<div class="k" style="font-size:.8em;margin-top:3px">GPU: ' + (GPU || 'hidden') + ' · ' + UA.replace(/^Mozilla\/5\.0 /, '').slice(0, 90) + '</div>';
   $('dbgBody').innerHTML = h;
 }
+// ---------- play recorder (v8): the game logs its own performance and sends it to Jarvis, no photos needed ----------
+// Record plays = On: every song is logged (1 sample per second + one automatic Measure on the first recorded song),
+// kept on this device (localStorage) and sent to Jarvis at the end of the song.
+const RKEY = 'pulserail.rec', LKEY = 'pulserail.logq';
+const LOG_URL = /^192\.168\.68\.200(:8444)?$/.test(location.host) ? '/api/pulserail/log' : 'https://192.168.68.200:8444/api/pulserail/log';
+let REC = QS.has('rec') ? QS.get('rec') !== '0' : localStorage.getItem(RKEY) === '1';
+let rec = null, recMeasured = false, recChipT = 0;
+const RA = { n: 0, dt: [], lg: 0, fx: 0, am: 0, rd: 0, gpu: 0, gn: 0, calls: 0, tris: 0, t: 0 };
+function recChip(text, secs) { const c = $('recChip'); c.textContent = text; c.classList.toggle('hidden', !text); recChipT = secs || 0; }
+function setRec(on) {
+  REC = on; localStorage.setItem(RKEY, on ? '1' : '0');
+  document.querySelectorAll('.recSeg button').forEach((b, i) => b.classList.toggle('on', (i === 0) === on));
+  if (on && state === 'play' && !rec) recStart(); if (!on && rec) recStop('switched off');
+  recInfo();
+}
+function recInfo() { const q = logQueue(); document.querySelectorAll('.recInfo').forEach(x => { x.textContent = (REC ? ' logs go to Jarvis' : '') + (q.length ? ' · ' + q.length + ' waiting' : ''); }); }
+function logQueue() { try { return JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { return []; } }
+function recStart() {
+  rec = { game: 'pulserail', version: VERSION, started: new Date().toISOString(), url: location.href.split('#')[0],
+    device: { ua: UA, gpu: GPU, profile: PROFILE, stored: STORED || 'auto', tier: TIER, screen: innerWidth + 'x' + innerHeight, dpr: window.devicePixelRatio || 1, timerQuery: !!TQ },
+    settings: { autoTune, kids: KIDS, weapon, song: song ? song.name || song.idx : null, debug: dbgOn },
+    t0: performance.now(), samples: [], probes: [], events: [] };
+  Object.assign(RA, { n: 0, dt: [], lg: 0, fx: 0, am: 0, rd: 0, gpu: 0, gn: 0, calls: 0, tris: 0, t: 0 });
+  recChip('● REC', 0);
+}
+function recEvent(what) { if (rec) rec.events.push({ t: +((performance.now() - rec.t0) / 1000).toFixed(1), what }); }
+function recTick(dtRaw, lg, fx, am, rd) {
+  RA.n++; RA.dt.push(dtRaw * 1000); RA.lg += lg; RA.fx += fx; RA.am += am; RA.rd += rd;
+  if (TQ && gpuMs >= 0) { RA.gpu += gpuMs; RA.gn++; } RA.calls += R.info.render.calls; RA.tris += R.info.render.triangles;
+  const t = (performance.now() - rec.t0) / 1000;
+  if (!recMeasured && !probe && t > 20 && state === 'play') { recMeasured = true; recEvent('measure start'); startProbe(true); }
+  if (t - RA.t < 1) return;
+  const d = RA.dt.sort((a, b) => a - b), n = RA.n, avg = d.reduce((a, b) => a + b, 0) / n, r1 = x => Math.round(x * 10) / 10;
+  const sec = run && song ? song.order[Math.max(0, Math.floor(songBeat() / 8)) % song.order.length] : '';
+  rec.samples.push({ t: r1(t), fps: r1(1000 / avg), avg: r1(avg), p95: r1(d[Math.floor(n * 0.95)] || 0), max: r1(d[n - 1] || 0), slow: d.filter(x => x > 20).length, frames: n,
+    game: r1(RA.lg / n), fx: r1(RA.fx / n), aim: r1(RA.am / n), submit: r1(RA.rd / n), gpu: RA.gn ? r1(RA.gpu / RA.gn) : null,
+    calls: Math.round(RA.calls / n), tris: Math.round(RA.tris / n), layerDraws: Array.prototype.slice.call(RD, 1),
+    lvl: Q.lvl, pr: +Q.pr.toFixed(2), canvas: R.domElement.width + 'x' + R.domElement.height, enemies: live.length, shots: bullets.length,
+    shards: shards.filter(q => q.life > 0).length, sec, probe: probe ? probe.label : '', state });
+  Object.assign(RA, { n: 0, dt: [], lg: 0, fx: 0, am: 0, rd: 0, gpu: 0, gn: 0, calls: 0, tris: 0, t });
+  $('recChip').textContent = '● REC ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + (probe ? ' · measuring' : '');
+}
+function recStop(why) {
+  if (!rec) return; const r = rec; rec = null; if (probe) { probe.i = probe.steps.length; probeNext(); }
+  const S = r.samples.filter(x => x.state === 'play'), all = S.length ? S : r.samples, mean = k => all.length ? Math.round(all.reduce((a, x) => a + (x[k] || 0), 0) / all.length * 10) / 10 : 0;
+  const cpu = mean('game') + mean('fx') + mean('aim') + mean('submit'), fr = mean('avg'), top = r.probes.length ? CATS.map((n, i) => [n, r.probes[0][i] || 0]).slice(1).sort((a, b) => b[1] - a[1])[0] : null;
+  r.ended = new Date().toISOString(); r.why = why; r.stats = Object.assign({}, stats);
+  r.summary = { version: VERSION, profile: PROFILE, fps: mean('fps'), p95: mean('p95'), worst1: all.length ? Math.max(...all.map(x => x.max)) : 0,
+    lvl: all.length ? all[all.length - 1].lvl : 0, secs: r.samples.length,
+    verdict: fr < 18.5 ? 'smooth' : cpu > fr * 0.6 ? 'cpu-bound' : 'gpu-bound' + (top ? ' (top layer ' + top[0] + ' ' + top[1].toFixed(1) + ' ms)' : '') };
+  delete r.t0;
+  const q = logQueue(); q.push(r); while (q.length > 4) q.shift();
+  try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e) { q.shift(); try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e2) {} }
+  sendLogs();
+}
+function sendLogs() {
+  const q = logQueue(); if (!q.length) { recInfo(); return; }
+  recChip('sending log…', 0);
+  const one = q[0], body = JSON.stringify(one);
+  fetch(LOG_URL, { method: 'POST', mode: LOG_URL[0] === '/' ? 'same-origin' : 'no-cors', headers: { 'Content-Type': 'text/plain' }, body })
+    .then(() => { const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
+    .catch(() => { recChip('log saved on this TV · Jarvis not reachable (open https://192.168.68.200:8444 once and accept)', 12); recInfo(); });
+}
+document.querySelectorAll('.recSeg').forEach(seg => { segBtn(seg, 'On', REC, () => setRec(true)); segBtn(seg, 'Off', !REC, () => setRec(false)); });
+recInfo(); if (logQueue().length) setTimeout(sendLogs, 3000);
 // Measure: switch each layer off for ~1 s and compare the frame time with the layers on
 let probeRes = null;
-function startProbe() {
-  if (probe) return; if (!dbgOn) setDebug(true);
+function startProbe(silent) {
+  if (probe) return; if (!dbgOn && !silent) setDebug(true); recEvent('measure');
   const steps = [], cats = []; for (let i = 1; i < CATS.length; i++) cats.push(i);
   steps.push({ base: 1 }); cats.forEach(c => { steps.push({ cat: c }); steps.push({ base: 1 }); }); steps.push({ half: 1 }); steps.push({ base: 1 });
   probe = { steps, i: -1, t: 0, acc: 0, n: 0, res: {}, bases: [], vals: [], label: '' }; probeRes = probeRes || {}; probeNext();
@@ -1194,6 +1266,7 @@ function finishProbe() {
   probeRes = { base };
   for (const k in p.res) probeRes[k] = Math.max(0, near(p.res[k].i) - p.res[k].v);
   probe = null; cam.layers.enableAll(); dbgT = 0;
+  if (rec) { rec.probes.push(Object.assign({ t: +((performance.now() - rec.t0) / 1000).toFixed(1) }, probeRes)); recEvent('measure done'); }
 }
 
 // ---------- input ----------
@@ -1226,6 +1299,7 @@ addEventListener('keydown', e => {
   if (audioStuck && ac) ac.resume();
   if (state === 'test') { e.preventDefault(); if (name === 'back') { toTitle(); return; } testHit(name || 'other', 'key ' + (e.key || '') + ' code ' + k); return; }
   // remote colour keys: blue (or D) = debug overlay, yellow (or M) = measure layers, green (or G) = switch weapon
+  if (k === 403 || k === 82) { e.preventDefault(); setRec(!REC); recChip(REC ? '● REC on: this song is logged' : 'recording off', 3); return; }
   if (k === 406 || k === 68) { e.preventDefault(); setDebug(!dbgOn); return; }
   if (k === 405 || k === 77) { e.preventDefault(); startProbe(); return; }
   if (k === 404 || k === 71) { e.preventDefault(); setWeapon(weapon === 'pistol' ? 'shotgun' : 'pistol'); return; }
@@ -1397,9 +1471,11 @@ function frame(now) {
   } else if (lockShown) { $('lock').style.display = 'none'; lockShown = false;
   }
   const tD = performance.now(), gq = gpuBegin();
-  rdOn = dbgOn; if (rdOn) RD.fill(0);
+  rdOn = dbgOn || !!rec; if (rdOn) RD.fill(0);
   R.render(scene, cam);
   gpuEnd(gq); const tE = performance.now();
+  if (rec) recTick(dtRaw, tB - tA, tC - tB, tD - tC, tE - tD);
+  if (recChipT > 0) { recChipT -= dt; if (recChipT <= 0) recChip(''); }
   if (dbgOn || probe) {
     if (TQ) gpuPoll();
     ptI = (ptI + 1) % NF; PT.dt[ptI] = Math.min(250, dtRaw * 1000); PT.logic[ptI] = tB - tA; PT.fx[ptI] = tC - tB; PT.aim[ptI] = tD - tC; PT.render[ptI] = tE - tD; PT.gpu[ptI] = gpuMs;
@@ -1424,7 +1500,7 @@ buildWorld(0); buildEnemyGeos(PAL); applyPalMats(); warmShaders(); renderSongs()
 setWeapon(weapon); setLevel(0); if (QS.has('debug') || localStorage.getItem(DKEY) === '1') setDebug(true);
 requestAnimationFrame(frame);
 window.__pr = { get state() { return state; }, stats, startSong, fire, setAim: setAimPx, get beat() { return songBeat(); }, get profile() { return PROFILE; },
-  get live() { return live.length; }, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
+  get live() { return live.length; }, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
 </script>
 </body>
 </html>
