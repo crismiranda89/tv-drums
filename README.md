@@ -12,6 +12,6 @@ Play: https://crismiranda89.github.io/tv-drums/ · Old free-play kit: https://cr
 
 Neon rhythm rail shooter: the city moves to the music, shoot enemies on the beat with the pointer remote (pistol or kid-friendly shotgun).
 
-Play: https://crismiranda89.github.io/tv-drums/pulserail/ · Earlier versions: `pulserail/pulserail-v1.html` … `pulserail-v9.html`. Record plays (Red button or R) sends a performance log to Jarvis on the home network; if the TV cannot reach it, "Send log by phone" shows a QR code to scan.
+Play: https://crismiranda89.github.io/tv-drums/pulserail/ opens a "Who's playing?" page: **Kids** goes to Pulse Rail Kids, **Grown-ups** asks a quiz PIN (the meaning of the universe) and then opens the game (`pulserail/play.html`, currently v9). The PIN only keeps small children out; it is not security. Earlier versions: `pulserail/pulserail-v1.html` … `pulserail-v9.html`. Record plays (Red button or R) sends a performance log to Jarvis on the home network; if the TV cannot reach it, "Send log by phone" shows a QR code to scan.
 
 **Pulse Rail Kids** — the same game re-dressed for small children (sunny candy town, rainbow arches, round Boppers that throw soap bubbles, confetti pops, happy songs, no way to lose). Play: https://crismiranda89.github.io/tv-drums/pulserail-kids/
