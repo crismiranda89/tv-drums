@@ -44,6 +44,8 @@
   #qrBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:#0b0b14;border:2px solid rgba(255,255,255,.3);border-radius:14px;padding:16px 20px;text-align:center;color:#fff;max-height:96vh}
   #qrBox .qrT{font-weight:800;font-size:18px;margin-bottom:8px}#qrBox .qrK{color:#9aa;font-size:14px;margin:6px 0}#qrBox canvas{position:static;display:block;margin:0 auto;background:#fff;image-rendering:pixelated;width:auto;height:auto}
   .tvua #qrBox .qrT{font-size:24px}.tvua #qrBox .qrK{font-size:18px}
+  #qrBox .qrs{display:flex;justify-content:center;align-items:flex-start}#qrBox .qrs>div{margin:0 14px}#qrBox .qrL{font-weight:800;font-size:16px;margin:4px 0 6px}
+  .tvua #qrBox .qrL{font-size:22px}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
     background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;cursor:pointer}
   .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px}
@@ -159,7 +161,7 @@
   <div id="wpnBadge"></div>
 </div>
 <div id="fps" title="Click for the debug overlay"></div><div id="recChip" class="hidden"></div>
-<div id="qrBox" class="hidden"><div class="qrT">Scan with your phone to send the play log to Jarvis <b id="qrN"></b></div><canvas id="qrCv"></canvas>
+<div id="qrBox" class="hidden"><div class="qrT">Scan both codes with your phone to send the play log to Jarvis <b id="qrN"></b></div><div class="qrs"><div><div class="qrL">1 · Summary</div><canvas id="qrCv"></canvas></div><div><div class="qrL" id="qrL2">2 · Detail</div><canvas id="qrCv2"></canvas></div></div>
   <div class="qrK" id="qrK"></div><div class="row"><button class="btn main" id="qrDone">Sent ✓ remove from TV</button><button class="btn" id="qrNext">Next log</button><button class="btn" id="qrClose">Close</button></div></div>
 <div id="dbg" class="hidden"><div id="dbgHead"></div><div id="dbgVerdict" class="verdict"></div><canvas id="dbgBars" width="560" height="10"></canvas><canvas id="dbgGraph" width="560" height="110"></canvas><div id="dbgBody"></div></div>
 
@@ -234,7 +236,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K1', KIDGAME = true;
+const VERSION = 'K2', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1115,7 +1117,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => ['pistol', 'shotgun'].forEac
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v1 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v2 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1244,12 +1246,14 @@ function recStart() {
   rec = { game: 'pulserail', edition: 'kids', version: VERSION, started: new Date().toISOString(), url: location.href.split('#')[0],
     device: { ua: UA, gpu: GPU, profile: PROFILE, stored: STORED || 'auto', tier: TIER, screen: innerWidth + 'x' + innerHeight, dpr: window.devicePixelRatio || 1, timerQuery: !!TQ },
     settings: { autoTune, kids: KIDS, weapon, song: song ? song.name || song.idx : null, debug: dbgOn },
-    t0: performance.now(), samples: [], probes: [], events: [] };
+    t0: performance.now(), samples: [], probes: [], events: [], frames: [] };
   Object.assign(RA, { n: 0, dt: [], lg: 0, fx: 0, am: 0, rd: 0, gpu: 0, gn: 0, calls: 0, tris: 0, t: 0 });
   recChip('● REC', 0);
 }
 function recEvent(what) { if (rec) rec.events.push({ t: +((performance.now() - rec.t0) / 1000).toFixed(1), what }); }
 function recTick(dtRaw, lg, fx, am, rd) {
+  // per-frame row (0.1 ms units, so 60 fps = 167): frame time, game logic, fx, aim, render submit, draw calls, GPU (-1 = no timer)
+  if (rec.frames.length < 1500) { const q = x => Math.round(x * 10); rec.frames.push([q(dtRaw * 1000), q(lg), q(fx), q(am), q(rd), R.info.render.calls, TQ && gpuMs >= 0 ? q(gpuMs) : -1]); }
   RA.n++; RA.dt.push(dtRaw * 1000); RA.lg += lg; RA.fx += fx; RA.am += am; RA.rd += rd;
   if (TQ && gpuMs >= 0) { RA.gpu += gpuMs; RA.gn++; } RA.calls += R.info.render.calls; RA.tris += R.info.render.triangles;
   const t = (performance.now() - rec.t0) / 1000;
@@ -1309,6 +1313,32 @@ function digest(r, B) {
     pb: (r.probes || []).map(p => { const o = [p.t, r1(p.base || 0), r1(p.half || 0)]; for (let i = 1; i < CATS.length; i++) o.push(r1(p[i] || 0)); return o; }),
     ev: (r.events || []).slice(0, 24).map(e => [e.t, e.what]), bs: B, b };
 }
+// QR 2 (v10): as many single frames as fit in one QR (version 40, ~2.9 KB), from the start of the recording.
+const QR_MAX = 2900;
+function detailPayload(r, n) {
+  const fr = (r.frames || []).slice(0, n), c = r.samples[0] || {};
+  let secs = 0; for (const f of fr) secs += f[0]; secs = Math.round(secs / 1000) / 10;
+  return { g: 'prd', v: r.version, at: r.started, why: r.why,
+    d: { ua: r.device.ua, gpu: r.device.gpu, p: r.device.profile, ti: r.device.tier, sc: r.device.screen, dpr: r.device.dpr, tq: r.device.timerQuery ? 1 : 0 },
+    s: { w: r.settings.weapon, song: r.settings.song, at: r.settings.autoTune ? 1 : 0 },
+    c: { lvl: c.lvl, pr: c.pr, cv: c.canvas, tris: c.tris, ld: c.layerDraws },
+    nf: (r.frames || []).length, secs,
+    ev: (r.events || []).filter(e => e.t <= secs + 0.05).map(e => [e.t, e.what]),
+    fe: 36 };
+}
+// frames travel as plain text after the header (no base64): numbers in base 36, draw calls only when they change
+function detailFrames(r, n) {
+  let calls = -1;
+  return (r.frames || []).slice(0, n).map(x => { const a = [x[0], x[1], x[2], x[3], x[4]].map(v => v.toString(36));
+    a.push(x[5] !== calls ? x[5].toString(36) : ''); calls = x[5]; if (x[6] >= 0) a.push(x[6].toString(36));
+    while (a.length > 5 && a[a.length - 1] === '') a.pop(); return a.join(','); }).join(';');
+}
+function detailUrl(r) {
+  const mk = n => JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(detailPayload(r, n))) + '~' + detailFrames(r, n);
+  let lo = 0, hi = (r.frames || []).length;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (mk(m).length <= QR_MAX) lo = m; else hi = m - 1; }
+  return { url: mk(lo), frames: lo, secs: detailPayload(r, lo).secs, of: lo === (r.frames || []).length };
+}
 function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function qrUrl(r) {
   for (const B of [5, 10, 20, 40]) { const u = JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(digest(r, B))); if (u.length < 1500) return u; }
@@ -1320,12 +1350,17 @@ function loadQr(cb) {
   const sc = document.createElement('script'); sc.src = "../pulserail/qrcode.js"; sc.onload = () => { const l = qrLib; qrLib = null; l.forEach(f => f()); };
   sc.onerror = () => { qrLib = null; recChip('could not load the QR maker (no internet?)', 6); }; document.head.appendChild(sc);
 }
-function drawQr() {
-  const q = logQueue(); if (!q.length) { closeQr(); return; } qrI = (qrI + q.length) % q.length;
-  const r = q[qrI], url = qrUrl(r), qr = qrcode(0, 'L'); qr.addData(url, 'Byte'); qr.make();
-  const m = qr.getModuleCount(), cv = $('qrCv'), px = Math.max(2, Math.floor(Math.min(innerHeight * 0.68, innerWidth * 0.8) / (m + 8))), W = (m + 8) * px;
+function qrDraw(cv, url, size) {
+  const qr = qrcode(0, 'L'); qr.addData(url, 'Byte'); qr.make();
+  const m = qr.getModuleCount(), px = Math.max(2, Math.floor(size / (m + 8))), W = (m + 8) * px;
   cv.width = cv.height = W; cv.style.width = cv.style.height = W + 'px'; const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, W); x.fillStyle = '#000';
   for (let rr = 0; rr < m; rr++) for (let c = 0; c < m; c++) if (qr.isDark(rr, c)) x.fillRect((c + 4) * px, (rr + 4) * px, px, px);
+}
+function drawQr() {
+  const q = logQueue(); if (!q.length) { closeQr(); return; } qrI = (qrI + q.length) % q.length;
+  const r = q[qrI], dt = detailUrl(r), box = Math.min(innerHeight * 0.66, innerWidth * 0.42);
+  qrDraw($('qrCv'), qrUrl(r), box * 0.75); qrDraw($('qrCv2'), dt.url, box);
+  $('qrL2').textContent = '2 · Detail: ' + dt.frames + ' frames, first ' + dt.secs + ' s' + (dt.of ? ' (all)' : '');
   const sm = r.summary || {};
   $('qrN').textContent = (qrI + 1) + ' / ' + q.length;
   $('qrK').textContent = (r.started || '').slice(0, 16).replace('T', ' ') + ' · ' + (sm.fps || '?') + ' fps · ' + (sm.secs || 0) + ' s · phone must be on the home Wi-Fi';
@@ -1604,7 +1639,7 @@ buildWorld(0); buildEnemyGeos(PAL); applyPalMats(); warmShaders(); renderSongs()
 setWeapon(weapon); setLevel(0); if (QS.has('debug') || localStorage.getItem(DKEY) === '1') setDebug(true);
 requestAnimationFrame(frame);
 window.__pr = { get state() { return state; }, stats, startSong, fire, setAim: setAimPx, get beat() { return songBeat(); }, get profile() { return PROFILE; },
-  get live() { return live.length; }, openQr, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
+  get live() { return live.length; }, openQr, detailUrl, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
 </script>
 </body>
 </html>
