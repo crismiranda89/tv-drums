@@ -12,4 +12,4 @@ Play: https://crismiranda89.github.io/tv-drums/ · Old free-play kit: https://cr
 
 Neon rhythm rail shooter: the city moves to the music, shoot enemies on the beat with the pointer remote (pistol or kid-friendly shotgun).
 
-Play: https://crismiranda89.github.io/tv-drums/pulserail/ · Earlier versions: `pulserail/pulserail-v1.html` … `pulserail-v8.html`. Record plays (Red button or R) sends a performance log to Jarvis on the home network.
+Play: https://crismiranda89.github.io/tv-drums/pulserail/ · Earlier versions: `pulserail/pulserail-v1.html` … `pulserail-v9.html`. Record plays (Red button or R) sends a performance log to Jarvis on the home network; if the TV cannot reach it, "Send log by phone" shows a QR code to scan.

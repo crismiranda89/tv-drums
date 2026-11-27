@@ -41,6 +41,9 @@
   .pop small{display:block;font-size:12px;letter-spacing:.2em;color:#ffe36e;text-align:center}
   #recChip{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9;font:700 13px ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:6px;pointer-events:none}
   .tvua #recChip{font-size:18px;bottom:4vh;padding:8px 14px}
+  #qrBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:#0b0b14;border:2px solid rgba(255,255,255,.3);border-radius:14px;padding:16px 20px;text-align:center;color:#fff;max-height:96vh}
+  #qrBox .qrT{font-weight:800;font-size:18px;margin-bottom:8px}#qrBox .qrK{color:#9aa;font-size:14px;margin:6px 0}#qrBox canvas{position:static;display:block;margin:0 auto;background:#fff;image-rendering:pixelated;width:auto;height:auto}
+  .tvua #qrBox .qrT{font-size:24px}.tvua #qrBox .qrK{font-size:18px}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
     background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;cursor:pointer}
   .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px}
@@ -135,6 +138,8 @@
   <div id="wpnBadge"></div>
 </div>
 <div id="fps" title="Click for the debug overlay"></div><div id="recChip" class="hidden"></div>
+<div id="qrBox" class="hidden"><div class="qrT">Scan with your phone to send the play log to Jarvis <b id="qrN"></b></div><canvas id="qrCv"></canvas>
+  <div class="qrK" id="qrK"></div><div class="row"><button class="btn main" id="qrDone">Sent ✓ remove from TV</button><button class="btn" id="qrNext">Next log</button><button class="btn" id="qrClose">Close</button></div></div>
 <div id="dbg" class="hidden"><div id="dbgHead"></div><div id="dbgVerdict" class="verdict"></div><canvas id="dbgBars" width="560" height="10"></canvas><canvas id="dbgGraph" width="560" height="110"></canvas><div id="dbgBody"></div></div>
 
 <div id="title" class="ov">
@@ -143,7 +148,7 @@
   <div id="songs"></div>
   <div class="row"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button></div>
   <div class="gfxRow">Weapon <div class="seg wpnSeg"></div> Kids mode <div class="seg kidSeg"></div></div>
-  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span></div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button></div>
   <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
   <div class="hint" id="hint"></div>
   <div id="vers"></div>
@@ -156,7 +161,7 @@
   <button class="btn" id="quitBtn">Songs</button>
   <button class="btn" id="measureBtn">Measure graphics cost</button>
   <div class="gfxRow">Weapon <div class="seg wpnSeg"></div> Kids mode <div class="seg kidSeg"></div></div>
-  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span></div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button></div>
   <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
 </div>
 <div id="results" class="ov hidden">
@@ -164,7 +169,7 @@
   <div class="grade" id="resGrade">A</div>
   <div class="nb" id="resNew"></div>
   <table id="resTable"></table>
-  <div class="row"><button class="btn main" id="retryBtn">Retry</button><button class="btn" id="songsBtn">Songs</button></div>
+  <div class="row"><button class="btn main" id="retryBtn">Retry</button><button class="btn" id="songsBtn">Songs</button><button class="btn qrBtn hidden">Send log by phone</button></div>
 </div>
 <div id="calib" class="ov hidden"><div id="calDot"></div><div id="calText"></div></div>
 <div id="test" class="ov hidden">
@@ -208,7 +213,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 8;
+const VERSION = 9;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1187,7 +1192,7 @@ function setRec(on) {
   if (on && state === 'play' && !rec) recStart(); if (!on && rec) recStop('switched off');
   recInfo();
 }
-function recInfo() { const q = logQueue(); document.querySelectorAll('.recInfo').forEach(x => { x.textContent = (REC ? ' logs go to Jarvis' : '') + (q.length ? ' · ' + q.length + ' waiting' : ''); }); }
+function recInfo() { const q = logQueue(); document.querySelectorAll('.qrBtn').forEach(b => b.classList.toggle('hidden', !q.length)); document.querySelectorAll('.recInfo').forEach(x => { x.textContent = (REC ? ' logs go to Jarvis' : '') + (q.length ? ' · ' + q.length + ' waiting' : ''); }); }
 function logQueue() { try { return JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { return []; } }
 function recStart() {
   rec = { game: 'pulserail', version: VERSION, started: new Date().toISOString(), url: location.href.split('#')[0],
@@ -1233,8 +1238,60 @@ function sendLogs() {
   const one = q[0], body = JSON.stringify(one);
   fetch(LOG_URL, { method: 'POST', mode: LOG_URL[0] === '/' ? 'same-origin' : 'no-cors', headers: { 'Content-Type': 'text/plain' }, body })
     .then(() => { const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
-    .catch(() => { recChip('log saved on this TV · Jarvis not reachable (open https://192.168.68.200:8444 once and accept)', 12); recInfo(); });
+    .catch(() => { recChip('log saved on this TV · Jarvis not reachable: use Send log by phone', 12); recInfo(); });
 }
+// ---------- send by phone (v9): the TV shows the log as a QR code, the phone opens a Jarvis page that uploads it ----------
+// A QR holds ~2 KB, so the QR carries a digest: 5 s buckets (10/20 s for long plays), the Measure result, device and events.
+const JARVIS = 'https://192.168.68.200:8444';
+function digest(r, B) {
+  const b = [], r1 = x => Math.round(x * 10) / 10;
+  let cur = null;
+  const flush = () => { if (!cur) return; const n = cur.n;
+    b.push([cur.t, r1(cur.fps / n), r1(cur.p95), r1(cur.max), cur.fr ? Math.round(cur.slow / cur.fr * 100) : 0, r1(cur.cpu / n), cur.gn ? r1(cur.gpu / cur.gn) : null, Math.round(cur.calls / n), cur.lvl, Math.round(cur.pr * 100), cur.en, cur.sec]); };
+  for (const x of r.samples) {
+    const k = Math.floor(x.t / B) * B;
+    if (!cur || cur.t !== k) { flush(); cur = { t: k, n: 0, fps: 0, p95: 0, max: 0, slow: 0, fr: 0, cpu: 0, gpu: 0, gn: 0, calls: 0, lvl: 0, pr: 1, en: 0, sec: x.sec + (x.probe ? '*' : '') }; }
+    cur.n++; cur.fps += x.fps; cur.p95 = Math.max(cur.p95, x.p95); cur.max = Math.max(cur.max, x.max); cur.slow += x.slow || 0; cur.fr += x.frames || 0;
+    cur.cpu += (x.game || 0) + (x.fx || 0) + (x.aim || 0) + (x.submit || 0); if (x.gpu != null) { cur.gpu += x.gpu; cur.gn++; }
+    cur.calls += x.calls || 0; cur.lvl = x.lvl; cur.pr = x.pr; cur.en = Math.max(cur.en, x.enemies || 0);
+  }
+  flush();
+  const st = r.stats || {};
+  return { g: 'pr', v: r.version, at: r.started, why: r.why, d: { ua: r.device.ua, gpu: r.device.gpu, p: r.device.profile, st: r.device.stored, sc: r.device.screen, dpr: r.device.dpr, tq: r.device.timerQuery ? 1 : 0 },
+    s: { at: r.settings.autoTune ? 1 : 0, k: r.settings.kids ? 1 : 0, w: r.settings.weapon, song: r.settings.song }, sm: r.summary,
+    st: [st.score, st.kills, st.total, st.hurt, st.failed ? 1 : 0],
+    pb: (r.probes || []).map(p => { const o = [p.t, r1(p.base || 0), r1(p.half || 0)]; for (let i = 1; i < CATS.length; i++) o.push(r1(p[i] || 0)); return o; }),
+    ev: (r.events || []).slice(0, 24).map(e => [e.t, e.what]), bs: B, b };
+}
+function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function qrUrl(r) {
+  for (const B of [5, 10, 20, 40]) { const u = JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(digest(r, B))); if (u.length < 1500) return u; }
+  const d = digest(r, 60); d.ev = []; return JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(d));
+}
+let qrI = 0, qrOpen = false, qrLib = null;
+function loadQr(cb) {
+  if (window.qrcode) return cb(); if (qrLib) return qrLib.push(cb); qrLib = [cb];
+  const sc = document.createElement('script'); sc.src = "qrcode.js"; sc.onload = () => { const l = qrLib; qrLib = null; l.forEach(f => f()); };
+  sc.onerror = () => { qrLib = null; recChip('could not load the QR maker (no internet?)', 6); }; document.head.appendChild(sc);
+}
+function drawQr() {
+  const q = logQueue(); if (!q.length) { closeQr(); return; } qrI = (qrI + q.length) % q.length;
+  const r = q[qrI], url = qrUrl(r), qr = qrcode(0, 'L'); qr.addData(url, 'Byte'); qr.make();
+  const m = qr.getModuleCount(), cv = $('qrCv'), px = Math.max(2, Math.floor(Math.min(innerHeight * 0.68, innerWidth * 0.8) / (m + 8))), W = (m + 8) * px;
+  cv.width = cv.height = W; cv.style.width = cv.style.height = W + 'px'; const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, W); x.fillStyle = '#000';
+  for (let rr = 0; rr < m; rr++) for (let c = 0; c < m; c++) if (qr.isDark(rr, c)) x.fillRect((c + 4) * px, (rr + 4) * px, px, px);
+  const sm = r.summary || {};
+  $('qrN').textContent = (qrI + 1) + ' / ' + q.length;
+  $('qrK').textContent = (r.started || '').slice(0, 16).replace('T', ' ') + ' · ' + (sm.fps || '?') + ' fps · ' + (sm.secs || 0) + ' s · phone must be on the home Wi-Fi';
+  $('qrNext').classList.toggle('hidden', q.length < 2);
+}
+function openQr() { if (!logQueue().length) return; loadQr(() => { qrOpen = true; $('qrBox').classList.remove('hidden'); drawQr(); setTimeout(() => $('qrDone').focus(), 50); }); }
+function closeQr() { qrOpen = false; $('qrBox').classList.add('hidden'); recInfo(); }
+function qrSent() { const q = logQueue(); q.splice(qrI, 1); localStorage.setItem(LKEY, JSON.stringify(q)); recInfo(); if (q.length) drawQr(); else { closeQr(); recChip('all logs sent ✓', 4); } }
+$('qrDone').onclick = e => { e.stopPropagation(); qrSent(); };
+$('qrNext').onclick = e => { e.stopPropagation(); qrI++; drawQr(); };
+$('qrClose').onclick = e => { e.stopPropagation(); closeQr(); };
+document.querySelectorAll('.qrBtn').forEach(b => { b.onclick = e => { e.stopPropagation(); openQr(); }; });
 document.querySelectorAll('.recSeg').forEach(seg => { segBtn(seg, 'On', REC, () => setRec(true)); segBtn(seg, 'Off', !REC, () => setRec(false)); });
 recInfo(); if (logQueue().length) setTimeout(sendLogs, 3000);
 // Measure: switch each layer off for ~1 s and compare the frame time with the layers on
@@ -1295,6 +1352,7 @@ const KEYNAME = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 461: 
 addEventListener('mousemove', () => document.body.classList.remove('kbd'));
 addEventListener('keydown', e => {
   const k = e.keyCode, name = KEYNAME[k];
+  if (qrOpen) { if (name === 'back') { e.preventDefault(); closeQr(); return; } if (name === 'left' || name === 'right') { e.preventDefault(); qrI += name === 'left' ? -1 : 1; drawQr(); return; } if (name !== 'ok' && name !== 'up' && name !== 'down') { e.preventDefault(); return; } }
   if (state !== 'play') document.body.classList.add('kbd');
   if (audioStuck && ac) ac.resume();
   if (state === 'test') { e.preventDefault(); if (name === 'back') { toTitle(); return; } testHit(name || 'other', 'key ' + (e.key || '') + ' code ' + k); return; }
@@ -1500,7 +1558,7 @@ buildWorld(0); buildEnemyGeos(PAL); applyPalMats(); warmShaders(); renderSongs()
 setWeapon(weapon); setLevel(0); if (QS.has('debug') || localStorage.getItem(DKEY) === '1') setDebug(true);
 requestAnimationFrame(frame);
 window.__pr = { get state() { return state; }, stats, startSong, fire, setAim: setAimPx, get beat() { return songBeat(); }, get profile() { return PROFILE; },
-  get live() { return live.length; }, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
+  get live() { return live.length; }, openQr, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
 </script>
 </body>
 </html>
