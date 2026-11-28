@@ -51,6 +51,7 @@
   .pnd_o_hud #hud,.pnd_o_aim #reticle,.pnd_o_aim #lock,.pnd_o_pop .pop,.pnd_o_pop #missed,.pnd_o_chip #fps,.pnd_o_chip #recChip,.pnd_o_fx #flash,.pnd_o_fx #dmg{display:none!important}
   #benchBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:21;background:#0b0b14;border:2px solid rgba(255,255,255,.3);border-radius:14px;padding:20px 26px;text-align:center;color:#fff;font-weight:800}#benchBox .btn{margin-top:14px}
   #qrBox .qrS{font-weight:800;font-size:15px;margin:2px 0 8px}#qrBox .qrS.ok{color:#6dffb0}#qrBox .qrS.bad{color:#ffb36e}.tvua #qrBox .qrS{font-size:20px}
+  #getReady{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;padding:18px 34px;border-radius:22px;background:rgba(60,30,140,.85);color:#fff;font-weight:900;font-size:30px;letter-spacing:.04em;pointer-events:none}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
     background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;cursor:pointer}
   .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px}
@@ -248,7 +249,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K15', KIDGAME = true;
+const VERSION = 'K16', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1069,12 +1070,20 @@ function judge() {
 }
 const JMUL = { perfect: 1.5, good: 1.2, off: 1 }, JTXT = { perfect: 'WOW!', good: 'NICE!', off: '' }, JCOL = { perfect: '#fff36e', good: '#ffffff', off: '#fff' };
 
-function startSong(i) {
+let songLoading = false;
+function startSong(i) {   // v16: a new palette means a world rebuild; show a card first so the freeze is not in the song
+  if (songLoading) return;
   initAudio(); if (ac.state === 'suspended') ac.resume();
   if (run) stopRun();
+  if (!world || PAL !== PALS[SONGS[i].pal]) { songLoading = true; $('getReady').classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => { try { startSongNow(i); } finally { songLoading = false; $('getReady').classList.add('hidden'); } })); return; }
+  startSongNow(i);
+}
+function startSongNow(i) {
   song = SONGS[i]; song.idx = i;
-  if (REC) setTimeout(recStart, 0);
   buildWorld(song.pal); buildEnemyGeos(PAL); applyPalMats(); warmShaders();
+  if (REC) setTimeout(recStart, 0);
+  last = performance.now();   // v16: the build time is not a play frame
   chart = makeChart(song); live.forEach(e => scene.remove(e.g)); live = []; bullets.forEach(b => scene.remove(b.g)); bullets = [];
   resetStats(); stats.total = chart.length;
   musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setValueAtTime(0.8, ac.currentTime);
@@ -1381,7 +1390,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v15 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v16 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1975,5 +1984,6 @@ requestAnimationFrame(frame);
 window.__pr = { get state() { return state; }, stats, startSong, fire, setAim: setAimPx, get beat() { return songBeat(); }, get profile() { return PROFILE; },
   get live() { return live.length; }, openQr, benchBegin, get bench() { return { on: BENCH, stage: benchStage, label: benchLabel }; }, detailUrl, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
 </script>
+<div id="getReady" class="hidden">Getting ready…</div>
 </body>
 </html>
