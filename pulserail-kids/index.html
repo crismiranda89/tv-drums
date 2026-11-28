@@ -24,7 +24,8 @@
   #hud{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:4}
   #prog{position:absolute;left:0;top:0;right:0;height:4px;background:rgba(255,255,255,.08)}
   #prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--b),var(--a))}
-  #scoreBox{position:absolute;top:14px;left:0;right:0;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  #scoreBox{position:absolute;top:14px;left:50%;width:600px;margin-left:-300px;text-align:center;text-shadow:0 2px 0 rgba(0,0,0,.35);will-change:transform}
+  #prog,#topR,#pauseBtn{will-change:transform}
   #score{font-size:40px;font-weight:900;font-style:italic;letter-spacing:.02em}
   #combo{font-size:13px;font-weight:800;letter-spacing:.25em;color:var(--dim);text-transform:uppercase}
   #combo b{color:#fff;font-size:18px;letter-spacing:.05em}
@@ -148,7 +149,7 @@
   .seg{border:2px solid rgba(255,255,255,.5)}.seg button{color:rgba(255,255,255,.75)}.seg button.on{background:#ff4fa0;color:#fff}
   #dmg{background:radial-gradient(ellipse at center,rgba(140,220,255,0) 45%,rgba(160,230,255,.75) 100%)!important}
   #missed{color:#fff!important;text-shadow:0 2px 8px rgba(40,20,100,.7)}
-  #score{text-shadow:0 3px 0 #ff4fa0,0 6px 14px rgba(40,20,100,.5)}
+  #score{text-shadow:0 3px 0 #ff4fa0,0 6px 0 rgba(40,20,100,.35)}
   #results .stars{font-size:96px;line-height:1;margin:6px 0;letter-spacing:.06em;color:#ffe14d;text-shadow:0 5px 0 #ff9a2e,0 10px 20px rgba(40,20,100,.5)}
   #results .stars i{font-style:normal;color:rgba(255,255,255,.28);text-shadow:none}
   #results table{font-size:24px}#results td:first-child{font-size:16px}
@@ -246,7 +247,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' || PROFILE === 'ultra' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K9', KIDGAME = true;
+const VERSION = 'K10', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -541,13 +542,17 @@ const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: tr
 const shardDark = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const rimMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide });
 const shardNeon = new THREE.MeshBasicMaterial({ color: 0xffffff });
+let WARM_RT = null;
 function warmShaders() {
   const g = new THREE.Group(); g.position.set(cam.position.x, 1, cam.position.z - 8);
   g.add(new THREE.Mesh(GEO.body, enemyMat), new THREE.Mesh(GEO.visor, visorMat), new THREE.Mesh(GEO.visor, visorHot), new THREE.Mesh(GEO.body, flashMat),
     new THREE.Mesh(GEO.bullet, bulletMat), new THREE.Mesh(GEO.body, rimMat), new THREE.Sprite(bGlowMat), new THREE.Sprite(bRingMat), new THREE.Sprite(haloMat), new THREE.Sprite(haloHot), new THREE.Sprite(ringMat), new THREE.Sprite(muzzleStar.material), new THREE.Mesh(waveGeo, new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending })), speedLines);
-  scene.add(g); const sv = shardMesh.visible, tv = trMesh.visible; shardMesh.visible = trMesh.visible = true;
-  try { R.compile(scene, cam); } catch (e) {}
-  scene.remove(g); shardMesh.visible = sv; trMesh.visible = tv;
+  [...GEO.bodies, GEO.armor, GEO.arm, GEO.drone].forEach(q => { const m = new THREE.Mesh(q, enemyMat); m.frustumCulled = false; g.add(m); }); g.add(new THREE.Mesh(GEO.droneV, visorMat));
+  g.traverse(o => { o.frustumCulled = false; });
+  scene.add(g); const sv = shardMesh.visible, tv = trMesh.visible, gv = {}; shardMesh.visible = trMesh.visible = true;
+  for (const id in gunModels) { gv[id] = gunModels[id].visible; gunModels[id].visible = true; }
+  try { R.compile(scene, cam); WARM_RT = WARM_RT || new THREE.WebGLRenderTarget(32, 32); R.setRenderTarget(WARM_RT); R.render(scene, cam); R.setRenderTarget(null); } catch (e) { R.setRenderTarget(null); }   // v10: real draw = buffers uploaded too
+  scene.remove(g); shardMesh.visible = sv; trMesh.visible = tv; for (const id in gv) gunModels[id].visible = gv[id];
 }
 function applyPalMats() {
   visorMat.color.set(PAL.visor); visorHot.color.set(0xffffff); bulletMat.color.set(PAL.bullet);
@@ -1116,6 +1121,8 @@ function tracer(end, st) {
 // ---------- DOM: popups, hud ----------
 const pops = [];
 for (let i = 0; i < 8; i++) { const d = document.createElement('div'); d.className = 'pop'; d.style.opacity = 0; document.body.appendChild(d); pops.push({ el: d, life: 0, x: 0, y: 0 }); }
+pops.forEach(p => { p.el.innerHTML = '+300<small>WOW! NICE! 0123456789</small>'; p.el.style.opacity = 0.01; p.el.style.display = 'block'; });
+requestAnimationFrame(() => requestAnimationFrame(() => pops.forEach(p => { if (p.life <= 0) { p.el.style.display = 'none'; p.el.style.opacity = 0; } })));
 const _pp = new THREE.Vector3();
 function popup(pos, text, sub, color) {
   let p = pops.find(x => x.life <= 0); if (!p) { p = pops[0]; for (const x of pops) if (x.life < p.life) p = x; } _pp.copy(pos).project(cam);
@@ -1247,7 +1254,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v9 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v10 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
