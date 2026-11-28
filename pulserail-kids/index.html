@@ -255,14 +255,14 @@ const TIER = {
   max:   { pr: 2,   aa: true,  segs: 8, back: true,  shards: 20, rows: 1.5, motes: 220, glow: true, trees: 4, hq: true, round: true, ultra: true, grass: true, gunQ: 1, bop: true },   // v15 Ultra: + grass meadow
 }[PROFILE];
 if (ULTRA_V) Object.assign(TIER, { a: { glass: 1 }, b: { forest: 1 }, c: { meadow2: 1 }, d: { post: 1 }, all: { glass: 1, forest: 1, meadow2: 1, post: 1 }, base: {} }[ULTRA_V]);
-else if (PROFILE === 'max') Object.assign(TIER, { glass: 1, forest: 1, meadow2: 1, post: 1 });   // v19: Ultra has everything
+else if (PROFILE === 'max') Object.assign(TIER, { glass: 1, forest: 1, meadow2: 1, post: 1, edge: 1, power: 1 });   // v20: grass to the road + wand power-ups   // v19: Ultra has everything
 if (PROFILE === 'tv') document.documentElement.classList.add('tv');
 if (TVUA) document.documentElement.classList.add('tvua');
 
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K19' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
+const VERSION = 'K20' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -477,13 +477,13 @@ let FLOWERG_ = null; const FLOWERG_MK = () => { const a = Acc(); put(a, BLADE, m
   put(a, ICO0, mtx(0, 0.98, 0, 0.13, 0.1, 0.13), 0xffe9a0); const g = bake(a); g.deleteAttribute('normal'); return g; };
 function flowerBed(pal, rnd) {   // v17 c: flowers that sway with the grass
   const N = 450, m = new THREE.InstancedMesh(FLOWERG_ || (FLOWERG_ = FLOWERG_MK()), grassMat, N), cols = pal.bloom.concat([0xffffff, 0xffe14d, 0xff8ab0]).map(x => new THREE.Color(x));
-  for (let i = 0; i < N; i++) { const s = i & 1 ? 1 : -1, x = s * (8.5 + Math.pow(rnd(), 1.5) * 18), z = -rnd() * SEG, h = 0.32 + rnd() * 0.22;
+  for (let i = 0; i < N; i++) { const s = i & 1 ? 1 : -1, x = s * ((TIER.edge ? 6.6 : 8.5) + Math.pow(rnd(), 1.5) * (TIER.edge ? 19.9 : 18)), z = -rnd() * SEG, h = 0.32 + rnd() * 0.22;
     _ge.set(0, rnd() * 6.28, 0); _gq.setFromEuler(_ge); _gm.compose(_gp.set(x, 0.04, z), _gq, _gs.set(h, h, h)); m.setMatrixAt(i, _gm); m.setColorAt(i, cols[Math.floor(rnd() * cols.length)]); }
   m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); return m;
 }
 function meadow(pal, rnd) {
   const N = TIER.meadow2 ? 12000 : 5600, m = new THREE.InstancedMesh(BLADEG, grassMat, N), base = new THREE.Color(pal.grass), tipC = pal.leaf.map(x => new THREE.Color(x));
-  for (let i = 0; i < N; i++) { const s = i & 1 ? 1 : -1, near = i < N * 0.62, x = s * (near ? 8.35 + Math.pow(rnd(), 1.4) * 7.5 : 15.5 + rnd() * 14), z = -rnd() * SEG;
+  for (let i = 0; i < N; i++) { const s = i & 1 ? 1 : -1, near = i < N * 0.62, x = s * (near ? (TIER.edge ? 6.5 : 8.35) + Math.pow(rnd(), 1.4) * (TIER.edge ? 9.3 : 7.5) : 15.5 + rnd() * 14), z = -rnd() * SEG;
     const h = near ? 0.32 + rnd() * 0.38 : 0.45 + rnd() * 0.5, w = 0.05 + rnd() * 0.035;
     _ge.set((rnd() - 0.5) * 0.25, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.25); _gq.setFromEuler(_ge);
     _gm.compose(_gp.set(x, 0.04, z), _gq, _gs.set(w, h, w)); m.setMatrixAt(i, _gm);
@@ -559,8 +559,11 @@ function buildSegment(pal, rnd, idx) {
   const lit = Acc(), neon = Acc(), win = Acc(), rbw = Acc(); if (TIER.forest) lit.can = Acc();
   put(lit, BOXN, mtx(0, -0.5, -SEG / 2, 12, 1, SEG), pal.floor);
   for (const s of [-1, 1]) {
-    put(lit, BOXN, mtx(s * 7.25, -0.35, -SEG / 2, 2.5, 1, SEG), pal.walk);
-    put(neon, BOXN, mtx(s * 6.0, 0.17, -SEG / 2, 0.09, 0.05, SEG), pal.neonB);
+    if (!TIER.edge) put(lit, BOXN, mtx(s * 7.25, -0.35, -SEG / 2, 2.5, 1, SEG), pal.walk);
+    else {   // v20 Ultra: soil to the road, a soft gutter and a candy kerb
+      put(lit, BOXN, mtx(s * 5.55, 0.004, -SEG / 2, 0.8, 0.01, SEG), pal.floor, 0.88);
+      for (let k = 0, z = -0.3; z > -SEG; k++, z -= 0.62) put(lit, ICO1, mtx(s * 6.3, 0.06, z, 0.2, 0.13, 0.27, 0, rnd() * 0.4, 0), k % 2 ? 0xfff6ee : pal.bloom[(idx + k >> 1) % pal.bloom.length], k % 2 ? 1 : 1.05); }
+    if (!TIER.edge) put(neon, BOXN, mtx(s * 6.0, 0.17, -SEG / 2, 0.09, 0.05, SEG), pal.neonB);
     // street lamps every half segment
     for (let k = 0; k < 2; k++) { const z = -4 - k * 12;   // v4: no lamps; round trees + little flower patches on the grass
       for (let f = 0; f < (TIER.hq ? 9 : 4); f++) put(lit, ICO0, mtx(s * (8.7 + rnd() * 0.9), 0.22, z - 2 + rnd() * 5, 0.17, 0.13, 0.17, 0, rnd() * 3, 0), pal.bloom[Math.floor(rnd() * pal.bloom.length)], 1.15);
@@ -583,7 +586,7 @@ function buildSegment(pal, rnd, idx) {
   else for (const sx of [-1, 1]) put(lit, ICO0, mtx(sx * 6.4, 0.5, -0.5, 1.1, 0.8, 1.1), pal.cloud);
   // forest along both sides: grass, bushes at the kerb, a row of trees, a row of bigger trees behind (and a third row on High)
   for (const s of [-1, 1]) {
-    put(lit, BOXN, mtx(s * 18.5, -0.45, -SEG / 2, 20, 1, SEG), pal.grass, TIER.grass ? 0.78 : 1);   // v15 Ultra: darker soil under the meadow
+    put(lit, BOXN, TIER.edge ? mtx(s * 17.275, -0.45, -SEG / 2, 22.45, 1, SEG) : mtx(s * 18.5, -0.45, -SEG / 2, 20, 1, SEG), pal.grass, TIER.grass ? 0.78 : 1);   // v15 Ultra: darker soil under the meadow
     for (let z = -1 - rnd() * 2; z > -SEG; z -= 3 + rnd() * 3) put(lit, ICO0, mtx(s * (8.7 + rnd() * 0.5), 0.35, z, 0.7, 0.55, 0.7, 0, rnd() * 3, 0), pal.leaf[Math.floor(rnd() * 4)], 0.9);
     for (let z = -rnd() * 2; z > -SEG; z -= 2.6 + rnd() * 1.6) tree(lit, s * (9.8 + rnd() * 1.6), z, 1 + rnd() * 0.35, rnd, pal, false);
     for (let z = -1 - rnd() * 2; z > -SEG; z -= 3.4 + rnd() * 2) tree(lit, s * (13.5 + rnd() * 3), z, 1.5 + rnd() * 0.6, rnd, pal, true);
@@ -594,13 +597,13 @@ function buildSegment(pal, rnd, idx) {
         put(lit, TRUNK7, mtx(mx, 0.12 * ms, mz, 0.05 * ms, 0.24 * ms, 0.05 * ms), 0xfff4e6);
         put(lit, new THREE.SphereGeometry(1, 16, 8, 0, 6.283, 0, 1.6), mtx(mx, 0.22 * ms, mz, 0.16 * ms, 0.13 * ms, 0.16 * ms), 0xff4a5a, 1.05);
         for (let d = 0; d < 4; d++) { const a = d * 1.57 + 0.4; put(lit, ICO0, mtx(mx + Math.cos(a) * 0.09 * ms, 0.31 * ms, mz + Math.sin(a) * 0.09 * ms, 0.025 * ms, 0.012, 0.025 * ms), 0xffffff, 1.2); } }
-      for (let i = 0; i < 6; i++) { const sx2 = s * (8.6 + rnd() * 10), sz2 = -rnd() * SEG; for (let k = 0; k < 3; k++) put(lit, ICO1, mtx(sx2 + k * 0.18, 0.06, sz2 + (rnd() - 0.5) * 0.3, 0.12 + rnd() * 0.1, 0.08, 0.1 + rnd() * 0.08, 0, rnd() * 3, 0), 0xc9c2d6, 0.9 + rnd() * 0.15); }
+      for (let i = 0; i < 6; i++) { const sx2 = s * ((TIER.edge ? 6.8 : 8.6) + rnd() * 10), sz2 = -rnd() * SEG; for (let k = 0; k < 3; k++) put(lit, ICO1, mtx(sx2 + k * 0.18, 0.06, sz2 + (rnd() - 0.5) * 0.3, 0.12 + rnd() * 0.1, 0.08, 0.1 + rnd() * 0.08, 0, rnd() * 3, 0), 0xc9c2d6, 0.9 + rnd() * 0.15); }
       for (let i = 0; i < 5; i++) put(lit, DISC, mtx(s * (9 + rnd() * 12), 0.058, -rnd() * SEG, 0.9 + rnd(), 1, 0.7 + rnd()), 0x5fb84a, 0.95);
     }
     if (TIER.ultra) {   // v13 Ultra: dense grass, petal flowers, round bushes
-      for (let i = 0; i < 110; i++) { const tx = s * (8.45 + Math.pow(rnd(), 1.6) * 14), tz = -rnd() * SEG, gc = pal.leaf[Math.floor(rnd() * 4)], hh = 0.32 + rnd() * 0.3;
+      for (let i = 0; i < 110; i++) { const tx = s * ((TIER.edge ? 6.55 : 8.45) + Math.pow(rnd(), 1.6) * (TIER.edge ? 15.9 : 14)), tz = -rnd() * SEG, gc = pal.leaf[Math.floor(rnd() * 4)], hh = 0.32 + rnd() * 0.3;
         for (let b = 0; b < 3; b++) put(lit, BLADE, mtx(tx + (b - 1) * 0.09, hh * 0.5 + 0.05, tz + (rnd() - 0.5) * 0.12, 0.05, hh, 0.05, (rnd() - 0.5) * 0.4, rnd() * 3, (b - 1) * 0.4), gc, 1.0 + rnd() * 0.12); }
-      for (let i = 0; i < 16; i++) { const fx = s * (8.5 + rnd() * 6), fz = -rnd() * SEG, pc = pal.bloom[Math.floor(rnd() * pal.bloom.length)];
+      for (let i = 0; i < 16; i++) { const fx = s * ((TIER.edge ? 6.6 : 8.5) + rnd() * (TIER.edge ? 7.9 : 6)), fz = -rnd() * SEG, pc = pal.bloom[Math.floor(rnd() * pal.bloom.length)];
         put(lit, BLADE, mtx(fx, 0.17, fz, 0.025, 0.3, 0.025), 0x4cbf6a);
         for (let p = 0; p < 5; p++) { const a = p / 5 * 6.283; put(lit, ICO0, mtx(fx + Math.cos(a) * 0.09, 0.33, fz + Math.sin(a) * 0.09, 0.075, 0.03, 0.075, 0, -a, 0), pc, 1.12); }
         put(lit, ICO0, mtx(fx, 0.35, fz, 0.05, 0.04, 0.05), 0xffd23d, 1.1); }
@@ -957,12 +960,12 @@ function updBolts(dt) {
 }
 
 // ---------- v7 wand magic: star tip + sparkles (two Points pools, one draw call each while something sparkles) ----------
-function star5Tex() {
+function star5Tex(white) {
   const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d'); x.translate(64, 64);
-  const g = x.createRadialGradient(0, 0, 0, 0, 0, 64); g.addColorStop(0, 'rgba(255,240,170,.9)'); g.addColorStop(0.35, 'rgba(255,210,90,.35)'); g.addColorStop(1, 'rgba(255,200,80,0)');
+  const g = x.createRadialGradient(0, 0, 0, 0, 0, 64); g.addColorStop(0, white ? 'rgba(255,255,255,.9)' : 'rgba(255,240,170,.9)'); g.addColorStop(0.35, white ? 'rgba(255,255,255,.4)' : 'rgba(255,210,90,.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
   x.fillStyle = g; x.fillRect(-64, -64, 128, 128);
   x.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 15 : 38, a = -Math.PI / 2 + i * Math.PI / 5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath();
-  x.fillStyle = '#ffd84a'; x.fill(); x.lineWidth = 4; x.strokeStyle = '#fff6c8'; x.stroke();
+  x.fillStyle = white ? '#ffffff' : '#ffd84a'; x.fill(); x.lineWidth = 4; x.strokeStyle = '#fff6c8'; x.stroke();
   x.fillStyle = 'rgba(255,255,255,.9)'; x.beginPath(); x.arc(0, -2, 8, 0, Math.PI * 2); x.fill();
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
@@ -1006,22 +1009,48 @@ function updPool(pool, dt) {
   pool.m.visible = any; pool.live = any ? 1 : 0;
   SPARKU.uScale.value = R.domElement.height / (2 * Math.tan(cam.fov * Math.PI / 360));
 }
-const trail = sparkPool(40, cam), sparks = sparkPool(220, scene);   // trail in camera space (follows the wand); orbs + their sparkles + bursts in the world
+const trail = sparkPool(40, cam), sparks = sparkPool(TIER.power ? 380 : 220, scene);   // trail in camera space (follows the wand); orbs + their sparkles + bursts in the world
 const _o0 = new THREE.Vector3(), _o1 = new THREE.Vector3();
-function spellOrb(end, col, L, delay) {   // a rainbow orb flies from a little in front of the star to the target, dropping sparkles
+function spellOrb(end, col, L, delay, size) {   // a rainbow orb flies from a little in front of the star to the target, dropping sparkles
   wandStar.getWorldPosition(_o0); _o0.lerp(end, 0.12); _o1.subVectors(end, _o0).multiplyScalar(1 / L);
-  spark(sparks, _o0, _o1.x + (Math.random() - 0.5) * 1.2, _o1.y + (Math.random() - 0.5) * 1.2, _o1.z, col, L, delay, 0, 0, 0.42, true, true);
+  spark(sparks, _o0, _o1.x + (Math.random() - 0.5) * 1.2, _o1.y + (Math.random() - 0.5) * 1.2, _o1.z, col, L, delay, 0, 0, size || 0.42, true, true);
 }
 const _tip = new THREE.Vector3(), _tipLast = new THREE.Vector3(); let tipT = 0;
 function wandTick(dt, pulse) {
   const on = weapon === 'wand' && gun.visible; wandStar.visible = on; if (!on) return;
-  wandStar.material.rotation += dt * 1.3; wandStar.scale.setScalar(0.13 * (1 + 0.18 * pulse + (muzzleT > 0 ? 0.5 : 0)));
+  wandPower(); if (wandLv === 1) wandStar.material.color.setHSL(0.07 + 0.03 * Math.sin(performance.now() / 120), 1, 0.62);
+  else if (wandLv === 2) wandStar.material.color.setHSL((wandHue = (wandHue + dt * 0.5) % 1), 1, 0.66);
+  wandStar.material.rotation += dt * (wandLv ? 2.6 : 1.3); wandStar.scale.setScalar(0.13 * (1 + 0.22 * wandLv + 0.18 * pulse + (muzzleT > 0 ? 0.5 : 0)));
   wandStar.getWorldPosition(_tip); cam.worldToLocal(_tip); tipT -= dt;
-  if (_tip.distanceTo(_tipLast) > 0.006 || tipT <= 0) { tipT = 0.12;
-    spark(trail, _tip, (Math.random() - 0.5) * 0.04, -0.03 - Math.random() * 0.04, (Math.random() - 0.5) * 0.04, SPARKC[Math.floor(Math.random() * SPARKC.length)], 0.5 + Math.random() * 0.2, 0, 0.05, 1.8, 0.022);
+  if (_tip.distanceTo(_tipLast) > 0.006 || tipT <= 0) { tipT = wandLv ? 0.06 : 0.12;
+    spark(trail, _tip, (Math.random() - 0.5) * 0.04, -0.03 - Math.random() * 0.04, (Math.random() - 0.5) * 0.04, (wandLv === 1 ? FIREC : SPARKC)[Math.floor(Math.random() * (wandLv === 1 ? 5 : 6))], 0.5 + Math.random() * 0.2, 0, wandLv === 1 ? -0.08 : 0.05, 1.8, 0.022 * (1 + 0.3 * wandLv));
     _tipLast.copy(_tip); }
 }
+// v20 Ultra: wand power-ups from the combo (0 normal, 1 fire, 2 comet)
+const FIREC = [0xff3b2f, 0xff7a1a, 0xffb02e, 0xffe14d, 0xff5a8a];
+let wandLv = 0, wandHue = 0, STARW = null, STARY = null;
+const wandLevel = () => !TIER.power || weapon !== 'wand' ? 0 : stats.combo >= 16 ? 2 : stats.combo >= 8 ? 1 : 0;
+function wandPower() {
+  const lv = wandLevel(); if (lv === wandLv) return; const up = lv > wandLv; wandLv = lv;
+  if (!STARW && lv) STARW = star5Tex(true); if (!STARY) STARY = wandStar.material.map;
+  wandStar.material.map = lv === 2 ? STARW : STARY; if (lv === 0) wandStar.material.color.set(0xffffff);
+  if (up) { missText(lv === 2 ? 'COMET WAND!' : 'FIRE WAND!'); const m = lv === 2 ? 79 : 74; [0, 0.09, 0.18].forEach((d, k) => setTimeout(() => SFX.spell(true, m + [0, 4, 7][k]), d * 1000));
+    wandStar.getWorldPosition(_o0); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; spark(sparks, _o0, Math.cos(a) * 1.6, Math.sin(a) * 1.6, 0, lv === 2 ? SPARKC[i % 6] : FIREC[i % 5], 0.5, 0, 0, 2.5, 0.25); } }
+}
+function powerOrbs(end, i) {   // replaces the normal 3 rainbow orbs while powered up
+  if (wandLv === 1) { for (let b = 0; b < 3; b++) spellOrb(end, FIREC[(stats.shots + b + i) % 5], 0.24, b * 0.045, 0.5); }
+  else for (let b = 0; b < 4; b++) spellOrb(end, SPARKC[(stats.shots * 2 + b + i) % 6], 0.22, b * 0.035, b ? 0.46 : 0.62);
+}
+function powerBurst(pos, delay) {
+  if (wandLv === 1) { for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, sp = 1 + Math.random() * 2.2;   // embers rise and drift
+      spark(sparks, pos, Math.cos(a) * sp, 1.5 + Math.random() * 2.5, Math.sin(a) * sp, FIREC[i % 5], 0.7 + Math.random() * 0.4, delay, -1.2, 1.4, 0.5 + Math.random() * 0.4); }
+    spark(sparks, pos, 0, 0, 0, 0xffd86a, 0.25, delay, 0, 0, 2.2); return; }
+  for (let i = 0; i < 20; i++) { const a = i / 20 * 6.283;   // a flat ring of stars + a pop of white sparkles
+    spark(sparks, pos, Math.cos(a) * 4.5, Math.sin(a) * 4.5, 0, SPARKC[i % 6], 0.55, delay, 0, 3, 0.75); }
+  for (let i = 0; i < 8; i++) spark(sparks, pos, (Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3, 0xffffff, 0.5, delay + 0.05, 2, 1.8, 0.45);
+}
 function starBurst(pos, delay) {   // a spell lands: little stars pop out
+  if (wandLv) return powerBurst(pos, delay);
   for (let i = 0; i < 14; i++) { const a = Math.random() * 6.28, b = Math.random() * 3.14, sp = 2 + Math.random() * 2.5;
     spark(sparks, pos, Math.cos(a) * Math.sin(b) * sp, Math.cos(b) * sp + 1.2, Math.sin(a) * Math.sin(b) * sp, SPARKC[i % SPARKC.length], 0.6 + Math.random() * 0.25, delay, 3, 1.8, 0.7); }
 }
@@ -1465,7 +1494,7 @@ function fire() {
       _pv.set(ax, ay); ray.setFromCamera(_pv, cam); end = ray.ray.at(i ? 40 : 30, _pe); }
     if (W.tr) tracer(end, W.tr);
     if (W.bolt) { const B = W.bolt; for (let b = 0; b < (B.n || 1); b++) { const col = B.cols[(stats.shots * 2 + b + i) % B.cols.length];
-        if (B.spark) spellOrb(end, col, B.L, b * 0.05); else bolt(end, col, B.size * (b ? 0.7 : 1), B.L, B.wob, b * 0.04); }
+        if (B.spark && wandLv) { if (!b) powerOrbs(end, i); } else if (B.spark) spellOrb(end, col, B.L, b * 0.05); else bolt(end, col, B.size * (b ? 0.7 : 1), B.L, B.wob, b * 0.04); }
       if (B.spark && i < hits.length) starBurst(end, B.L + 0.05); }
   }
   if (!hits.length) {   // a miss off the beat breaks the combo; a miss on the beat is just music
@@ -1626,7 +1655,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v19' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v20' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
