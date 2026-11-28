@@ -247,7 +247,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' || PROFILE === 'ultra' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K10', KIDGAME = true;
+const VERSION = 'K11', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -393,7 +393,7 @@ beatWave(neonMat, '1.1');
 const winMat = new THREE.MeshBasicMaterial({ vertexColors: true }); beatWave(winMat, '1.6');
 const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 1.6);   // kept for palette data only, not in the scene
 const sunL = new THREE.DirectionalLight(0xffffff, 2.2); sunL.position.set(-0.5, 1, -0.8);
-let dropS = 0, neonKick = 0, skyMat = null, sunMesh = null; const _dropC = new THREE.Color(); let world = null, PAL = PALS[0], segments = [], skyGroup = null, motes = null;
+let dropS = 0, neonKick = 0, skyMat = null, sunMesh = null, cloudMesh = null; const _dropC = new THREE.Color(); let world = null, PAL = PALS[0], segments = [], skyGroup = null, motes = null;
 
 const CONE6 = new THREE.CylinderGeometry(0, 1, 1, 6, 1).toNonIndexed();
 const DISC = new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2).toNonIndexed();
@@ -438,6 +438,12 @@ function buildSegment(pal, rnd, idx) {
     for (let z = -1 - rnd() * 2; z > -SEG; z -= 3.4 + rnd() * 2) tree(lit, s * (13.5 + rnd() * 3), z, 1.5 + rnd() * 0.6, rnd, pal, true);
     if ((TIER.trees || 2) >= 3) for (let z = -rnd() * 3; z > -SEG; z -= 5 + rnd() * 3) tree(lit, s * (20 + rnd() * 6), z, 2.2 + rnd() * 0.8, rnd, pal, true);
     if ((TIER.trees || 2) >= 4) for (let z = -rnd() * 4; z > -SEG; z -= 6 + rnd() * 4) tree(lit, s * (28 + rnd() * 6), z, 2.8 + rnd() * 0.8, rnd, pal, true);
+    if (TIER.hq) {   // v11 High: grass patches, tufts and pebbles
+      for (let i = 0; i < 6; i++) put(lit, DISC, mtx(s * (10 + rnd() * 14), 0.055, -rnd() * SEG, 1.6 + rnd() * 2.2, 1, 1 + rnd() * 1.6, 0, rnd() * 3, 0), pal.grass, rnd() < 0.5 ? 0.88 : 1.1);
+      for (let i = 0; i < 18; i++) { const tx = s * (8.45 + rnd() * (i < 10 ? 0.8 : 12)), tz = -rnd() * SEG, gc = pal.leaf[Math.floor(rnd() * 4)];
+        for (let b = 0; b < 3; b++) put(lit, PYR, mtx(tx + (b - 1) * 0.1, 0.27, tz + (rnd() - 0.5) * 0.14, 0.09, 0.46 + rnd() * 0.24, 0.09, (rnd() - 0.5) * 0.5, rnd() * 3, (b - 1) * 0.35), gc, 1.05); }
+      for (let i = 0; i < 3; i++) put(lit, ICO0, mtx(s * (8.3 + rnd() * 0.5), 0.1, -rnd() * SEG, 0.16 + rnd() * 0.1, 0.1, 0.14, 0, rnd() * 3, 0), 0xd8d0e8, 0.95);
+    }
   }
   const g = new THREE.Group();
   g.add(tag(new THREE.Mesh(shadeGeo(bake(lit), pal), litMat), C.city), tag(new THREE.Mesh(bake(neon), neonMat), C.neon), tag(new THREE.Mesh(bake(win), winMat), C.neon));
@@ -466,14 +472,15 @@ function buildSky(pal) {
   sky.renderOrder = 20; grp.add(sky);   // v7: drawn after the city + skyline so covered sky pixels are never painted
   const sun = new THREE.Mesh(new THREE.PlaneGeometry(56, 56), new THREE.MeshBasicMaterial({ map: sunTex(pal), transparent: true, fog: false, depthWrite: false }));
   sun.position.set(0, 14, -135); sun.renderOrder = -2; grp.add(sun); skyMat = sky.material; sunMesh = sun; _dropC.set(pal.neonA);
-  const sk = Acc(), r = rng(7), skc = new THREE.Color(pal.hill).lerp(new THREE.Color(pal.fog), 0.25);
+  const sk = Acc(), cl = Acc(), r = rng(7), skc = new THREE.Color(pal.hill).lerp(new THREE.Color(pal.fog), 0.25);
   for (let a = 0; a < 360; a += 9) { const ang = a * Math.PI / 180, h = 8 + r() * 14, R = 128;
     put(sk, ICO0, mtx(Math.sin(ang) * R, -2, -Math.cos(ang) * R, 14 + r() * 6, h, 10, 0, -ang, 0), skc, 0.9 + r() * 0.2); }
   for (let i = 0; i < 16; i++) { const ang = (i / 16 + r() * 0.04) * Math.PI * 2, R = 112, y = 26 + r() * 22, cx = Math.sin(ang) * R, cz = -Math.cos(ang) * R;
     for (let p = 0; p < 4; p++) { const o = (p - 1.5) * 4.2, rr = 3.4 + r() * 2.6 - Math.abs(p - 1.5) * 0.6;
-      put(sk, ICO0, mtx(cx + Math.cos(ang) * o, y + (p % 2) * 1.6, cz + Math.sin(ang) * o, rr * 1.2, rr, rr, 0, r() * 3, 0), pal.cloud, 0.97 + r() * 0.05); } }
+      put(TIER.hq ? cl : sk, TIER.hq ? ICO1 : ICO0, mtx(cx + Math.cos(ang) * o, y + (p % 2) * 1.6, cz + Math.sin(ang) * o, rr * 1.2, rr, rr, 0, r() * 3, 0), pal.cloud, 0.97 + r() * 0.05); } }
   const skl = new THREE.Mesh(bake(sk), new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
   skl.renderOrder = 19; grp.add(skl);   // v7: writes depth so the sky behind it is skipped
+  cloudMesh = null; if (TIER.hq) { cloudMesh = new THREE.Mesh(bake(cl), skl.material); cloudMesh.renderOrder = 19; grp.add(cloudMesh); }   // v11 High: drifting clouds
   return tag(grp, C.sky);
 }
 function buildWorld(palIdx) {
@@ -1254,7 +1261,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v10 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v11 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1710,6 +1717,7 @@ function frame(now) {
   dropS += (drop - dropS) * Math.min(1, dt * 3);
   NEONU.uWave.value = 0; NEONU.uBeat.value = frac; NEONU.uCamZ.value = cam.position.z;
   updSpeed(dt, dropS);
+  if (cloudMesh) cloudMesh.rotation.y += dt * 0.008;
   if (skyMat) { const a = dropS * (0.18 + 0.22 * barPulse); skyMat.color.setRGB(1 + a * (_dropC.r - 0.3), 1 + a * (_dropC.g - 0.3), 1 + a * (_dropC.b - 0.3));
     sunMesh.scale.setScalar(1 + 0.07 * pulse * (0.4 + dropS) + 0.08 * barPulse * dropS); }
   gunNeon.color.set(PAL.neonB).multiplyScalar(0.7 + pulse * 0.6);
