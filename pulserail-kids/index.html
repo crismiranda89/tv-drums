@@ -248,7 +248,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K13', KIDGAME = true;
+const VERSION = 'K14', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -763,6 +763,36 @@ const gunGlow = new THREE.MeshBasicMaterial({ vertexColors: true });   // v3: ca
   put(a, BOXN, mtx(0, -0.08, -0.06, 0.06, 0.15, 0.075, -0.25, 0, 0), 0xa64cff);
   for (const z of [0.155, 0.205]) put(gl, cylZ(0.04, 0.04, 0.012, 12), mtx(0, 0.035, z, 1, 1, 1), 0x6dff8a);
   for (const x of [-0.036, 0.036]) put(gl, BOXN, mtx(x, 0.03, 0.0, 0.004, 0.014, 0.22), 0x6dff8a);
+  if (TIER.ultra) {   // v14 Ultra: high-resolution laser (smooth shapes, many segments) to measure what detail on the toy costs
+    a = Acc(); gl = Acc(); const W = 0xf4f4ff, P = 0xa64cff, D = 0x3a2a7a, G = 0x6dff8a, capZ = (r, len, sx, sy) => new THREE.CapsuleGeometry(r, len, 16, 64).rotateX(Math.PI / 2);
+    put(a, capZ(0.042, 0.2), mtx(0, 0.03, -0.005, 0.9, 1, 1), W);                                   // body
+    put(a, capZ(0.03, 0.17), mtx(0, -0.004, 0.01, 1.25, 0.6, 1), 0xe2e2f4);                          // belly
+    const prof = []; for (let i = 0; i <= 24; i++) { const t = i / 24; prof.push(new THREE.Vector2(0.026 + 0.014 * Math.pow(t, 2.2) + 0.004 * Math.sin(t * 9), t * 0.14)); }
+    put(a, new THREE.LatheGeometry(prof, 96).rotateX(Math.PI / 2), mtx(0, 0.035, 0.12, 1, 1, 1), D);   // flared emitter
+    put(a, new THREE.CylinderGeometry(0.03, 0.03, 0.006, 96, 1).rotateX(Math.PI / 2), mtx(0, 0.035, 0.262, 1, 1, 1), 0x1a1240);
+    for (const z of [0.15, 0.185, 0.22, 0.25]) put(gl, new THREE.TorusGeometry(0.033 + (z - 0.15) * 0.1, 0.0045, 20, 96), mtx(0, 0.035, z, 1, 1, 1), G);   // glowing rings
+    put(gl, new THREE.SphereGeometry(0.018, 48, 32), mtx(0, 0.035, 0.258, 1, 1, 0.5), 0xc8ffd8);       // emitter core
+    put(a, new THREE.CylinderGeometry(0.016, 0.016, 0.15, 64, 1).rotateX(Math.PI / 2), mtx(0, 0.094, -0.01, 1, 1, 1), P);   // scope
+    for (const z of [-0.085, 0.065]) put(a, new THREE.TorusGeometry(0.017, 0.004, 16, 64), mtx(0, 0.094, z, 1, 1, 1), 0x7a2cd0);
+    put(gl, new THREE.SphereGeometry(0.014, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2), mtx(0, 0.094, 0.066, 1, 1, 0.6), 0x9af0ff);   // lens
+    for (const y of [0.068, 0.072]) put(a, new THREE.BoxGeometry(0.008, 0.01, 0.02, 2, 2, 2), mtx(0, y, (y - 0.07) * 20 - 0.01, 1, 1, 1), P);
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < 6; i++) put(a, capZ(0.0035, 0.03), mtx(sx * 0.038, 0.045 - i * 0.0075, -0.07, 1, 1, 1), D);   // vents
+      put(gl, capZ(0.003, 0.2), mtx(sx * 0.0385, 0.022, 0.0, 1, 1, 1), G);   // light strips
+      for (let i = 0; i < 3; i++) put(gl, new THREE.SphereGeometry(0.004, 24, 16), mtx(sx * 0.038, 0.06, 0.03 + i * 0.022, 1, 1, 1), [0xff5a8a, 0xffe14d, 0x6dff8a][i]);
+    }
+    const fin = new THREE.Shape(); fin.moveTo(0, 0); fin.quadraticCurveTo(0.02, 0.07, 0.11, 0.08); fin.quadraticCurveTo(0.08, 0.03, 0.12, 0); fin.lineTo(0, 0);
+    const finG = new THREE.ExtrudeGeometry(fin, { depth: 0.006, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 6, curveSegments: 32 });
+    put(a, finG, mtx(-0.006, 0.07, -0.1, 1, 0.8, 1, 0, -Math.PI / 2, 0), P);   // top fin
+    for (const sx of [-1, 1]) put(a, finG, mtx(sx * 0.03, 0.0, -0.11, 0.7, 0.45, 1, 0, -Math.PI / 2, sx * 1.1), P);   // side fins
+    put(a, new THREE.CapsuleGeometry(0.028, 0.1, 16, 48), mtx(0, -0.085, -0.065, 1.1, 1, 1.25, -0.28, 0, 0), P);   // grip
+    for (let i = 0; i < 5; i++) put(a, new THREE.TorusGeometry(0.03, 0.004, 12, 64).rotateX(Math.PI / 2), mtx(0, -0.05 - i * 0.022, -0.055 - i * 0.006, 1.1, 1, 1.25, -0.28, 0, 0), 0x7a2cd0);
+    put(a, new THREE.TorusGeometry(0.028, 0.0045, 16, 64, Math.PI), mtx(0, -0.03, 0.0, 1, 1, 1, 0, Math.PI / 2, Math.PI), D);   // trigger guard
+    put(a, capZ(0.005, 0.02), mtx(0, -0.032, -0.006, 1, 1, 1, -0.6, 0, 0), 0xffe14d);   // trigger
+    put(gl, capZ(0.02, 0.012), mtx(0, 0.03, -0.122, 0.9, 1, 1), 0xb48cff);   // energy cell at the back
+    gunModels.laser = mk(a, null, gl);
+    let tri = 0; gunModels.laser.traverse(o => { if (o.geometry) tri += o.geometry.attributes.position.count / 3; }); gunModels.laser.userData.tris = tri;
+  } else
   gunModels.laser = mk(a, null, gl);
   gunKick.add(gunModels.wand, gunModels.water, gunModels.laser);
 })();
@@ -1319,7 +1349,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v13 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v14 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
