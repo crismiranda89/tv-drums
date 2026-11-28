@@ -34,9 +34,9 @@
   #shield b.off{background:rgba(255,255,255,.12);box-shadow:none}
   #pauseBtn{position:absolute;left:14px;bottom:14px;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.25);
     background:rgba(0,0,0,.35);pointer-events:auto;font-weight:900;font-size:15px}
-  #dmg{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:3;opacity:0;will-change:opacity;
+  #dmg{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:3;opacity:0;display:none;
     background:radial-gradient(ellipse at center,rgba(255,0,60,0) 45%,rgba(255,0,60,.55) 100%)}
-  .pop{position:fixed;left:0;top:0;z-index:5;pointer-events:none;will-change:transform,opacity;font-weight:900;font-style:italic;font-size:22px;white-space:nowrap;
+  .pop{position:fixed;left:0;top:0;z-index:5;pointer-events:none;display:none;font-weight:900;font-style:italic;font-size:22px;white-space:nowrap;
     text-shadow:0 0 10px rgba(0,0,0,.8)}
   .pop small{display:block;font-size:12px;letter-spacing:.2em;color:#ffe36e;text-align:center}
   #recChip{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9;font:700 13px ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:6px;pointer-events:none}
@@ -46,7 +46,8 @@
   .tvua #qrBox .qrT{font-size:24px}.tvua #qrBox .qrK{font-size:18px}
   #qrBox .qrs{display:flex;justify-content:center;align-items:flex-start}#qrBox .qrs>div{margin:0 14px}#qrBox .qrL{font-weight:800;font-size:16px;margin:4px 0 6px}
   .tvua #qrBox .qrL{font-size:22px}
-  .probeNoDom #hud,.probeNoDom #reticle,.probeNoDom #lock,.probeNoDom .pop,.probeNoDom #fps,.probeNoDom #recChip,.probeNoDom #missed,.probeNoDom #flash{display:none!important}
+  .probeNoDom #hud,.probeNoDom #reticle,.probeNoDom #lock,.probeNoDom .pop,.probeNoDom #fps,.probeNoDom #recChip,.probeNoDom #missed,.probeNoDom #flash,.probeNoDom #dmg{display:none!important}
+  .pnd_o_hud #hud,.pnd_o_aim #reticle,.pnd_o_aim #lock,.pnd_o_pop .pop,.pnd_o_pop #missed,.pnd_o_chip #fps,.pnd_o_chip #recChip,.pnd_o_fx #flash,.pnd_o_fx #dmg{display:none!important}
   #benchBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:21;background:#0b0b14;border:2px solid rgba(255,255,255,.3);border-radius:14px;padding:20px 26px;text-align:center;color:#fff;font-weight:800}#benchBox .btn{margin-top:14px}
   #qrBox .qrS{font-weight:800;font-size:15px;margin:2px 0 8px}#qrBox .qrS.ok{color:#6dffb0}#qrBox .qrS.bad{color:#ffb36e}.tvua #qrBox .qrS{font-size:20px}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
@@ -105,7 +106,7 @@
   #meter{width:150px;height:5px;margin:6px auto 0;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
   #meter i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--b),var(--a));transform-origin:0 0;transform:scaleX(0)}
   #prog i{transform-origin:0 0;width:100%!important;transform:scaleX(0)}
-  #flash{position:fixed;left:0;top:0;right:0;bottom:0;background:#fff;opacity:0;pointer-events:none;z-index:3;will-change:opacity}
+  #flash{position:fixed;left:0;top:0;right:0;bottom:0;background:#fff;opacity:0;pointer-events:none;z-index:3;display:none}
   #missed{position:fixed;top:40%;font-weight:900;font-style:italic;letter-spacing:.2em;color:#ff5a7a;opacity:0;pointer-events:none;z-index:5;font-size:16px}
   #audioMsg{position:fixed;left:50%;top:30%;transform:translateX(-50%);z-index:9;padding:16px 26px;border-radius:14px;background:rgba(0,0,0,.8);font-weight:800}
   .offRow{margin-top:14px;font-size:15px;color:var(--dim)}.offRow b{color:#fff}
@@ -218,29 +219,30 @@ const QS = new URLSearchParams(location.search);
 let AUTOPLAY = QS.has('autoplay');
 const TVUA = /Tizen|Web0S|webOS|SMART-TV|SmartTV|NetCast|HbbTV|BRAVIA|VIDAA|AFT[A-Z]|CrKey|GoogleTV|Android TV/i.test(UA);
 const LGTV = /Web0S|webOS|NetCast/i.test(UA);
-// ---------- graphics profile: 'tv' = Low, 'phone' = Medium, 'pc' = High ----------
+// ---------- graphics profile (kids v8): 'tv' = Lite, 'phone' = Low, 'pc' = Medium (the old High, trimmed), 'ultra' = High (new) ----------
 const GKEY = 'pulserail.gfx';
 const qGfx = QS.get('gfx');
-if (qGfx) { if (/^(tv|phone|pc)$/.test(qGfx)) localStorage.setItem(GKEY, qGfx); else localStorage.removeItem(GKEY); }
+if (qGfx) { if (/^(tv|phone|pc|ultra)$/.test(qGfx)) localStorage.setItem(GKEY, qGfx); else localStorage.removeItem(GKEY); }
 let GPU = '';
 try { const g = document.createElement('canvas').getContext('webgl'), x = g && g.getExtension('WEBGL_debug_renderer_info');
   GPU = x ? String(g.getParameter(x.UNMASKED_RENDERER_WEBGL)) : ''; const lc = g && g.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); } catch (e) {}
 const PHONEUA = !TVUA && (/Android|iPhone|iPad|Mobile/i.test(UA) || (matchMedia('(pointer:coarse)').matches && Math.min(innerWidth, innerHeight) < 900));
 const WEAKGPU = /Mali|PowerVR|Adreno|VideoCore|Vivante|Realtek|MStar|Novatek|SwiftShader|llvmpipe/i.test(GPU);
 const STORED = localStorage.getItem(GKEY);
-const PROFILE = STORED || (TVUA ? 'tv' : PHONEUA ? 'phone' : WEAKGPU ? 'tv' : 'pc');
+const PROFILE = /^(tv|phone|pc|ultra)$/.test(STORED || '') ? STORED : (TVUA ? 'tv' : PHONEUA ? 'phone' : WEAKGPU ? 'tv' : 'pc');
 const TIER = {
   tv:    { pr: Math.min(1, 1280 / Math.max(1, innerWidth)), aa: false, segs: 5, back: false, shards: 6,  rows: 2.6, motes: 0,   glow: false },
   phone: { pr: 1.5, aa: false, segs: 6, back: true,  shards: 10, rows: 1.9, motes: 60,  glow: true },
-  pc:    { pr: 2,   aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true },
+  pc:    { pr: 1.25, aa: false, segs: 7, back: true, shards: 12, rows: 1.5, motes: 100, glow: true, trees: 3 },
+  ultra: { pr: 1.5, aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true, trees: 4, hq: true },
 }[PROFILE];
 if (PROFILE === 'tv') document.documentElement.classList.add('tv');
 if (TVUA) document.documentElement.classList.add('tvua');
 
-const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
+const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' || PROFILE === 'ultra' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K7', KIDGAME = true;
+const VERSION = 'K8', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -275,8 +277,8 @@ function gfxWatch(dt) {   // 1 s windows: 2 slow windows step down, 6 fast windo
   if (GOV.acc < 1) return;
   const avg = GOV.acc / GOV.n; GOV.acc = 0; GOV.n = 0;
   if (!autoTune || GOV.cool > 0) return;
-  if (avg > 0.0195) { GOV.fastWin = 0; if (++GOV.slowWin >= 2) { GOV.slowWin = 0; stepQ(1); } }
-  else if (avg < 0.0172) { GOV.slowWin = 0; if (++GOV.fastWin >= 6 && Q.lvl > 0 && Q.lvl - 1 < GOV.ceil) { GOV.fastWin = 0; stepQ(-1); } }
+  if (avg > 0.037) { GOV.fastWin = 0; if (++GOV.slowWin >= 2) { GOV.slowWin = 0; stepQ(1); } }
+  else if (avg < 0.024) { GOV.slowWin = 0; if (++GOV.fastWin >= 6 && Q.lvl > 0 && Q.lvl - 1 < GOV.ceil) { GOV.fastWin = 0; stepQ(-1); } }
   else { GOV.slowWin = 0; GOV.fastWin = 0; }
 }
 let lastUp = -1e9;
@@ -325,7 +327,7 @@ const RAINBOW = [0xff5a5a, 0xffa53d, 0xffe14d, 0x6ddc5a, 0x31c8ff, 0xa67cff];
 
 // ---------- geometry helpers: merge many boxes into one vertex-coloured mesh ----------
 const BOXN = new THREE.BoxGeometry(1, 1, 1).toNonIndexed(), PLANEN = new THREE.PlaneGeometry(1, 1).toNonIndexed();
-const ICO0 = new THREE.IcosahedronGeometry(1, 0).toNonIndexed(), ICO1 = new THREE.IcosahedronGeometry(1, 1).toNonIndexed(), PYR = new THREE.CylinderGeometry(0, 0.72, 1, 4, 1).toNonIndexed();
+const ICO0 = new THREE.IcosahedronGeometry(1, 0).toNonIndexed(), ICO_LOW = ICO0, ICO1 = new THREE.IcosahedronGeometry(1, 1).toNonIndexed(), PYR = new THREE.CylinderGeometry(0, 0.72, 1, 4, 1).toNonIndexed();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3(), _c = new THREE.Color();
 function mtx(x, y, z, sx, sy, sz, rx, ry, rz) { _e.set(rx || 0, ry || 0, rz || 0); _q.setFromEuler(_e); return _m.compose(_v.set(x, y, z), _q, _s.set(sx, sy, sz)); }
 function Acc() { return { p: [], c: [] }; }
@@ -389,8 +391,10 @@ const sunL = new THREE.DirectionalLight(0xffffff, 2.2); sunL.position.set(-0.5, 
 let dropS = 0, neonKick = 0, skyMat = null, sunMesh = null; const _dropC = new THREE.Color(); let world = null, PAL = PALS[0], segments = [], skyGroup = null, motes = null;
 
 const CONE6 = new THREE.CylinderGeometry(0, 1, 1, 6, 1).toNonIndexed();
-function tree(acc, x, z, sc, rnd, pal, far) {   // round, pine or blossom tree: 2-4 low-poly pieces (~40-70 triangles)
-  const t = rnd(), dk = far ? 0.84 : 1, th = (1.3 + rnd() * 0.6) * sc, pick = a => a[Math.floor(rnd() * a.length)];
+const DISC = new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2).toNonIndexed();
+function tree(acc, x, z, sc, rnd, pal, far) {   // round, pine or blossom tree: 2-4 low-poly pieces (~40-70 triangles; High: rounder, ~200)
+  const t = rnd(), dk = far ? 0.84 : 1, th = (1.3 + rnd() * 0.6) * sc, pick = a => a[Math.floor(rnd() * a.length)], ICO0 = TIER.hq && !far ? ICO1 : ICO_LOW;
+  if (TIER.hq) put(acc, DISC, mtx(x + 0.3 * sc, 0.07, z + 0.2 * sc, 1.5 * sc, 1, 1.3 * sc), pal.grass, 0.62);   // soft shadow on the grass
   put(acc, BOXN, mtx(x, th / 2, z, 0.34 * sc, th, 0.34 * sc, 0, rnd() * 3, 0), 0x9a6a4a, dk);
   if (t < 0.45) { const r = (1.5 + rnd() * 0.6) * sc, col = pick(pal.leaf);
     put(acc, ICO0, mtx(x, th + r * 0.8, z, r, r * 0.95, r, 0, rnd() * 3, 0), col, dk);
@@ -409,7 +413,7 @@ function buildSegment(pal, rnd, idx) {
     put(neon, BOXN, mtx(s * 6.0, 0.17, -SEG / 2, 0.09, 0.05, SEG), pal.neonB);
     // street lamps every half segment
     for (let k = 0; k < 2; k++) { const z = -4 - k * 12;   // v4: no lamps; round trees + little flower patches on the grass
-      for (let f = 0; f < 4; f++) put(lit, ICO0, mtx(s * (8.7 + rnd() * 0.9), 0.22, z - 2 + rnd() * 5, 0.17, 0.13, 0.17, 0, rnd() * 3, 0), pal.bloom[Math.floor(rnd() * pal.bloom.length)], 1.15);
+      for (let f = 0; f < (TIER.hq ? 9 : 4); f++) put(lit, ICO0, mtx(s * (8.7 + rnd() * 0.9), 0.22, z - 2 + rnd() * 5, 0.17, 0.13, 0.17, 0, rnd() * 3, 0), pal.bloom[Math.floor(rnd() * pal.bloom.length)], 1.15);
       put(lit, BOXN, mtx(s * 7.4, 0.9, z - 6, 0.28, 1.8, 0.28), 0x9a6a4a);
       put(lit, ICO0, mtx(s * 7.4, 2.3, z - 6, 1.05, 1.0, 1.05, 0, rnd() * 3, 0), rnd() < 0.5 ? 0x5ccf52 : 0x7fe06a); }
   }
@@ -427,7 +431,8 @@ function buildSegment(pal, rnd, idx) {
     for (let z = -1 - rnd() * 2; z > -SEG; z -= 3 + rnd() * 3) put(lit, ICO0, mtx(s * (8.7 + rnd() * 0.5), 0.35, z, 0.7, 0.55, 0.7, 0, rnd() * 3, 0), pal.leaf[Math.floor(rnd() * 4)], 0.9);
     for (let z = -rnd() * 2; z > -SEG; z -= 2.6 + rnd() * 1.6) tree(lit, s * (9.8 + rnd() * 1.6), z, 1 + rnd() * 0.35, rnd, pal, false);
     for (let z = -1 - rnd() * 2; z > -SEG; z -= 3.4 + rnd() * 2) tree(lit, s * (13.5 + rnd() * 3), z, 1.5 + rnd() * 0.6, rnd, pal, true);
-    if (TIER.segs >= 8) for (let z = -rnd() * 3; z > -SEG; z -= 5 + rnd() * 3) tree(lit, s * (20 + rnd() * 6), z, 2.2 + rnd() * 0.8, rnd, pal, true);
+    if ((TIER.trees || 2) >= 3) for (let z = -rnd() * 3; z > -SEG; z -= 5 + rnd() * 3) tree(lit, s * (20 + rnd() * 6), z, 2.2 + rnd() * 0.8, rnd, pal, true);
+    if ((TIER.trees || 2) >= 4) for (let z = -rnd() * 4; z > -SEG; z -= 6 + rnd() * 4) tree(lit, s * (28 + rnd() * 6), z, 2.8 + rnd() * 0.8, rnd, pal, true);
   }
   const g = new THREE.Group();
   g.add(tag(new THREE.Mesh(shadeGeo(bake(lit), pal), litMat), C.city), tag(new THREE.Mesh(bake(neon), neonMat), C.neon), tag(new THREE.Mesh(bake(win), winMat), C.neon));
@@ -1113,7 +1118,7 @@ function popup(pos, text, sub, color) {
   p.x = (_pp.x + 1) / 2 * innerWidth; p.y = (1 - _pp.y) / 2 * innerHeight - 30; p.life = 0.8;
   if (Math.abs(p.x - aim.px) < 90 && Math.abs(p.y - aim.py) < 70) { p.y = aim.py - 80; p.x += p.x > aim.px ? 50 : -50; }
   for (let k = 0; k < 4; k++) { const o = pops.find(x => x !== p && x.life > 0.3 && Math.abs(x.x - p.x) < 110 && Math.abs(x.y - p.y) < 40); if (!o) break; p.y = o.y - 44; }
-  p.el.innerHTML = text + (sub ? '<small>' + sub + '</small>' : ''); p.el.style.color = color;
+  p.el.innerHTML = text + (sub ? '<small>' + sub + '</small>' : ''); p.el.style.color = color; p.el.style.display = 'block';
 }
 const fmt = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 function updateHud() {
@@ -1220,7 +1225,7 @@ function setGfx(next) {
   const q = new URLSearchParams(location.search); q.delete('gfx'); q.delete('autotune'); const qs = q.toString();
   location.href = location.pathname + (qs ? '?' + qs.replace(/=(&|$)/g, '$1') : '');
 }
-const GFX_OPTS = [['tv', 'Low'], ['phone', 'Medium'], ['pc', 'High']], TIER_NAME = { tv: 'Low', phone: 'Medium', pc: 'High' };
+const GFX_OPTS = [['tv', 'Lite'], ['phone', 'Low'], ['pc', 'Medium'], ['ultra', 'High']], TIER_NAME = { tv: 'Lite', phone: 'Low', pc: 'Medium', ultra: 'High' };
 function segBtn(seg, label, on, fn, data) { const b = document.createElement('button'); b.textContent = label; if (on) b.className = 'on'; if (data) b.dataset.w = data;
   b.onclick = e => { e.stopPropagation(); SFX.click(); fn(b); }; seg.appendChild(b); return b; }
 document.querySelectorAll('.gfxSeg').forEach(seg => { segBtn(seg, 'Auto' + (!STORED ? ' (' + TIER_NAME[PROFILE] + ')' : ''), !STORED, () => setGfx('auto')); GFX_OPTS.forEach(o => segBtn(seg, o[1], STORED === o[0], () => setGfx(o[0]))); });
@@ -1237,7 +1242,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v7 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v8 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1375,7 +1380,7 @@ function recStart() {
 function recEvent(what) { if (rec) rec.events.push({ t: +((performance.now() - rec.t0) / 1000).toFixed(1), what }); }
 function recTick(dtRaw, lg, fx, am, rd) {
   // per-frame row (0.1 ms units, so 60 fps = 167): frame time, game logic, fx, aim, render submit, draw calls, GPU (-1 = no timer)
-  if (rec.frames.length < 1500) { const q = x => Math.round(x * 10); rec.frames.push([q(dtRaw * 1000), q(lg), q(fx), q(am), q(rd), R.info.render.calls, TQ && gpuMs >= 0 ? q(gpuMs) : -1]); }
+  if (rec.frames.length < 7200) { const q = x => Math.round(x * 10); rec.frames.push([q(dtRaw * 1000), q(lg), q(fx), q(am), q(rd), R.info.render.calls, TQ && gpuMs >= 0 ? q(gpuMs) : -1]); }
   RA.n++; RA.dt.push(dtRaw * 1000); RA.lg += lg; RA.fx += fx; RA.am += am; RA.rd += rd;
   if (TQ && gpuMs >= 0) { RA.gpu += gpuMs; RA.gn++; } RA.calls += R.info.render.calls; RA.tris += R.info.render.triangles;
   const t = (performance.now() - rec.t0) / 1000;
@@ -1400,11 +1405,11 @@ function benchBegin() {
 }
 function benchTick() {
   const t = (performance.now() - rec.t0) / 1000, ws = Object.keys(WPN), lv = BENCH_LV.length;
-  if (benchStage === 0 && t >= 8) { benchStage = 1; rec.frames = []; recEvent('bench L0 (detail from here)'); benchLabel = 'steady'; }
-  else if (benchStage === 1 && t >= 12 && !recMeasured) { recMeasured = true; recEvent('measure start'); startProbe(true); benchLabel = 'measuring'; }
+  if (benchStage === 0 && t >= 8) { benchStage = 1; rec.frames = []; rec.ft0 = t; recEvent('bench L0 (detail from here)'); benchLabel = 'steady'; }
+  else if (benchStage === 1 && t >= 10 && !recMeasured) { recMeasured = true; recEvent('measure start'); startProbe(true); benchLabel = 'measuring'; }
   else if (benchStage === 1 && recMeasured && !probe) { benchStage = 2; benchT = t; setLevel(BENCH_LV[0]); recEvent('bench L' + BENCH_LV[0]); benchLabel = 'L' + BENCH_LV[0]; }
   else if (benchStage === 1 && probe) benchLabel = 'measuring';
-  else if (benchStage >= 2 && benchStage < 2 + lv && t - benchT >= 6) {
+  else if (benchStage >= 2 && benchStage < 2 + lv && t - benchT >= 5) {
     benchStage++; benchT = t;
     if (benchStage < 2 + lv) { setLevel(BENCH_LV[benchStage - 2]); recEvent('bench L' + BENCH_LV[benchStage - 2]); benchLabel = 'L' + BENCH_LV[benchStage - 2]; }
     else { setLevel(0); setWeapon(ws[0]); recEvent('bench L0 toy ' + ws[0]); benchLabel = ws[0]; }
@@ -1470,34 +1475,40 @@ function digest(r, B) {
     s: { at: r.settings.autoTune ? 1 : 0, k: r.settings.kids ? 1 : 0, w: r.settings.weapon, song: r.settings.song }, sm: r.summary,
     st: [st.score, st.kills, st.total, st.hurt, st.failed ? 1 : 0],
     pb: (r.probes || []).map(p => { const o = [p.t, r1(p.base || 0), r1(p.half || 0)]; for (let i = 1; i < CATS.length; i++) o.push(r1(p[i] || 0));
-      const sl = p.slow || {}; o.push(r1(p.overlays || 0), r1(p.empty || 0), sl.base, sl.half, sl.overlays, sl.empty); return o; }),
+      const sl = p.slow || {}; o.push(r1(p.overlays || 0), r1(p.empty || 0), sl.base, sl.half, sl.overlays, sl.empty);
+      ['o_hud', 'o_aim', 'o_pop', 'o_chip', 'o_fx'].forEach(k => o.push(r1(p[k] || 0), sl[k])); return o; }),
     ev: (r.events || []).slice(0, 24).map(e => [e.t, e.what]), bs: B, b };
 }
 // QR 2 (v10): as many single frames as fit in one QR (version 40, ~2.9 KB), from the start of the recording.
 const QR_MAX = 2900;
-function detailPayload(r, n) {
-  const fr = (r.frames || []).slice(0, n), c = r.samples[0] || {};
-  let secs = 0; for (const f of fr) secs += f[0]; secs = Math.round(secs / 1000) / 10;
+function detailPayload(r, n, s0) {
+  s0 = s0 || 0; const F = r.frames || [], fr = F.slice(s0, s0 + n);
+  let secs = 0, t0 = 0; for (const f of fr) secs += f[0]; secs = Math.round(secs / 1000) / 10;
+  for (let i = 0; i < s0; i++) t0 += F[i][0]; t0 = Math.round(t0 / 1000 + (r.ft0 || 0) * 10) / 10;   // seconds since the log started
+  let c = r.samples[0] || {}; for (const x of r.samples) if (Math.abs(x.t - t0) < Math.abs((c.t || 0) - t0)) c = x;
   return { g: 'prd', v: r.version, at: r.started, why: r.why,
     d: { ua: r.device.ua, gpu: r.device.gpu, p: r.device.profile, ti: r.device.tier, sc: r.device.screen, dpr: r.device.dpr, tq: r.device.timerQuery ? 1 : 0 },
     s: { w: r.settings.weapon, song: r.settings.song, at: r.settings.autoTune ? 1 : 0 },
     c: { lvl: c.lvl, pr: c.pr, cv: c.canvas, tris: c.tris, ld: c.layerDraws },
-    nf: (r.frames || []).length, secs,
-    ev: (r.events || []).filter(e => e.t <= secs + 0.05).map(e => [e.t, e.what]),
+    nf: F.length, secs, t0, f0: s0,
+    ev: (r.events || []).filter(e => e.t >= t0 - 0.05 && e.t <= t0 + secs + 0.05).map(e => [e.t, e.what]),
     fe: 36 };
 }
 // frames travel as plain text after the header (no base64): numbers in base 36, draw calls only when they change
-function detailFrames(r, n) {
-  let calls = -1;
-  return (r.frames || []).slice(0, n).map(x => { const a = [x[0], x[1], x[2], x[3], x[4]].map(v => v.toString(36));
+function detailFrames(r, n, s0) {
+  let calls = -1; s0 = s0 || 0;
+  return (r.frames || []).slice(s0, s0 + n).map(x => { const a = [x[0], x[1], x[2], x[3], x[4]].map(v => v.toString(36));
     a.push(x[5] !== calls ? x[5].toString(36) : ''); calls = x[5]; if (x[6] >= 0) a.push(x[6].toString(36));
     while (a.length > 5 && a[a.length - 1] === '') a.pop(); return a.join(','); }).join(';');
 }
-function detailUrl(r) {
-  const mk = n => JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(detailPayload(r, n))) + '~' + detailFrames(r, n);
-  let lo = 0, hi = (r.frames || []).length;
-  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (mk(m).length <= QR_MAX) lo = m; else hi = m - 1; }
-  return { url: mk(lo), frames: lo, secs: detailPayload(r, lo).secs, of: lo === (r.frames || []).length };
+function detailUrl(r) {   // v8: the slowest stretch after the first 5 s (the owner's problems came around minute one)
+  const F = r.frames || [], mk = (n, s0) => JARVIS + '/static/pulserail-log.html#' + b64url(JSON.stringify(detailPayload(r, n, s0))) + '~' + detailFrames(r, n, s0);
+  const fit = s0 => { let lo = 0, hi = F.length - s0; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (mk(m, s0).length <= QR_MAX) lo = m; else hi = m - 1; } return lo; };
+  const n0 = fit(0); let s0 = 0;
+  if (F.length > n0) { let skip = 0, acc = 0; while (skip < F.length && acc < 50000) acc += F[skip++][0];
+    let sum = 0, best = -1; for (let i = skip; i < F.length; i++) { sum += F[i][0]; if (i - skip >= n0) sum -= F[i - n0][0]; if (i - skip >= n0 - 1 && sum > best) { best = sum; s0 = i - n0 + 1; } } }
+  const n = fit(s0), p = detailPayload(r, n, s0);
+  return { url: mk(n, s0), frames: n, secs: p.secs, t0: p.t0, of: n === F.length };
 }
 function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function qrUrl(r) {
@@ -1520,7 +1531,7 @@ function drawQr() {
   const q = logQueue(); if (!q.length) { closeQr(); return; } qrI = (qrI + q.length) % q.length;
   const r = q[qrI], dt = detailUrl(r), box = Math.min(innerHeight * 0.66, innerWidth * 0.42);
   qrDraw($('qrCv'), qrUrl(r), box * 0.75); qrDraw($('qrCv2'), dt.url, box);
-  $('qrL2').textContent = '2 · Detail: ' + dt.frames + ' frames, first ' + dt.secs + ' s' + (dt.of ? ' (all)' : '');
+  $('qrL2').textContent = '2 · Detail: ' + dt.frames + ' frames, ' + (dt.t0 ? 'slowest stretch ' + dt.t0 + '–' + Math.round((dt.t0 + dt.secs) * 10) / 10 + ' s' : 'first ' + dt.secs + ' s') + (dt.of ? ' (all)' : '');
   const sm = r.summary || {};
   $('qrN').textContent = (qrI + 1) + ' / ' + q.length;
   $('qrK').textContent = (typeof r.version === 'number' ? 'v' : '') + r.version + ' · ' + ((r.settings && r.settings.song) || '') + ' · ' + (r.started ? new Date(r.started).toLocaleString().slice(0, 17) : '') + ' · ' + (sm.fps || '?') + ' fps · ' + (sm.secs || 0) + ' s' + (r.why === 'bench' ? ' · benchmark' : '') + ' · phone on the home Wi-Fi';
@@ -1545,14 +1556,16 @@ function startProbe(silent) {
   const steps = [], cats = []; for (let i = 1; i < CATS.length; i++) cats.push(i);
   steps.push({ base: 1 }); cats.forEach(c => { steps.push({ cat: c }); steps.push({ base: 1 }); }); steps.push({ key: 'half' }); steps.push({ base: 1 });
   steps.push({ key: 'overlays' }); steps.push({ base: 1 }); steps.push({ key: 'empty' }); steps.push({ base: 1 });
+  ['o_hud', 'o_aim', 'o_pop', 'o_chip', 'o_fx'].forEach((k, i) => { steps.push({ key: k }); if (i % 2) steps.push({ base: 1 }); }); steps.push({ base: 1 });   // v8: which overlay costs what (fewer bases so the bench still fits the song)
   probe = { steps, i: -1, t: 0, acc: 0, n: 0, res: {}, bases: [], vals: [], label: '' }; probeRes = probeRes || {}; probeNext();
 }
 function probeNext() {
-  const p = probe; cam.layers.enableAll(); if (p.halfOn) { R.setPixelRatio(Q.pr); fit(); p.halfOn = false; } document.body.classList.remove('probeNoDom'); p.empty = false;
+  const p = probe; cam.layers.enableAll(); if (p.halfOn) { R.setPixelRatio(Q.pr); fit(); p.halfOn = false; } document.body.classList.remove('probeNoDom'); document.body.className = document.body.className.replace(/\bpnd_\S+/g, '').trim(); p.empty = false;
   p.i++; if (p.i >= p.steps.length) { finishProbe(); return; }
   const s = p.steps[p.i]; p.t = 0; p.acc = 0; p.n = 0; p.vals = [];
   if (s.cat) { cam.layers.disable(s.cat); p.label = 'hide ' + CATS[s.cat]; } else if (s.key === 'half') { R.setPixelRatio(Q.pr * 0.5); fit(); p.halfOn = true; p.label = 'half resolution'; }
-  else if (s.key === 'overlays') { document.body.classList.add('probeNoDom'); p.label = 'overlays hidden'; } else if (s.key === 'empty') { p.empty = true; p.label = 'empty frame'; } else p.label = 'everything on';
+  else if (s.key === 'overlays') { document.body.classList.add('probeNoDom'); p.label = 'overlays hidden'; } else if (s.key === 'empty') { p.empty = true; p.label = 'empty frame'; }
+  else if (/^o_/.test(s.key || '')) { document.body.classList.add('pnd_' + s.key); p.label = 'hide ' + s.key.slice(2); } else p.label = 'everything on';
 }
 function probeTick(dt, cpuMs) {
   const p = probe; p.t += dt; if (p.t < 0.3) return;
@@ -1568,7 +1581,7 @@ function finishProbe() {
   const near = i => { const b = p.bases.filter(x => Math.abs(x.i - i) === 1); return b.length ? b.reduce((a, x) => a + x.v, 0) / b.length : base; };
   probeRes = { base, slow: { base: Math.round(p.bases.reduce((a, b) => a + b.slow, 0) / Math.max(1, p.bases.length)) } };
   for (const k in p.res) { probeRes[k] = Math.max(0, near(p.res[k].i) - p.res[k].v); probeRes.slow[k] = p.res[k].slow; }
-  probe = null; cam.layers.enableAll(); document.body.classList.remove('probeNoDom'); dbgT = 0;
+  probe = null; cam.layers.enableAll(); document.body.classList.remove('probeNoDom'); document.body.className = document.body.className.replace(/\bpnd_\S+/g, '').trim(); dbgT = 0;
   if (rec) { rec.probes.push(Object.assign({ t: +((performance.now() - rec.t0) / 1000).toFixed(1) }, probeRes)); recEvent('measure done'); }
 }
 
@@ -1747,11 +1760,11 @@ function frame(now) {
   for (const r of rings) if (r.life > 0) { r.life -= dt; const k = 1 - r.life / 0.35; r.spr.scale.setScalar(r.size * (0.3 + k)); r.spr.material.opacity = 1 - k; if (r.life <= 0) r.spr.visible = false; }
   for (const b of bursts) if (b.life > 0) { b.life -= dt; const k = Math.max(0, b.life / b.max); b.spr.scale.setScalar(b.size * (1.4 - k * 0.4)); b.spr.material.opacity = k; if (b.life <= 0) b.spr.visible = false; }
   updTracers(dt); updBolts(dt); updPool(trail, dt); updPool(sparks, dt);
-  if (dmgFlash > 0 || dmgShown) { dmgFlash = Math.max(0, dmgFlash - dt * 2.2); $('dmg').style.opacity = dmgFlash; dmgShown = dmgFlash > 0; }
-  if (flashA > 0 || flashShown) { flashA = Math.max(0, flashA - dt * 2); $('flash').style.opacity = flashA; flashShown = flashA > 0; }
+  if (dmgFlash > 0 || dmgShown) { dmgFlash = Math.max(0, dmgFlash - dt * 2.2); $('dmg').style.opacity = dmgFlash; dmgShown = dmgFlash > 0; $('dmg').style.display = dmgShown ? 'block' : 'none'; }
+  if (flashA > 0 || flashShown) { flashA = Math.max(0, flashA - dt * 2); $('flash').style.opacity = flashA; flashShown = flashA > 0; $('flash').style.display = flashShown ? 'block' : 'none'; }
   if (missT > 0) { missT -= dt; $('missed').style.opacity = Math.min(1, missT * 2.5); if (missT <= 0) $('missed').style.opacity = 0; }
   for (const p of pops) if (p.life > 0) { p.life -= dt; const k = p.life / 0.8; p.el.style.opacity = Math.min(1, k * 2.5);
-    p.el.style.transform = 'translate(' + (p.x - 40) + 'px,' + (p.y - (1 - k) * 40) + 'px) scale(' + (0.8 + Math.min(0.4, (1 - k) * 2)) + ')'; if (p.life <= 0) p.el.style.opacity = 0; }
+    p.el.style.transform = 'translate(' + (p.x - 40) + 'px,' + (p.y - (1 - k) * 40) + 'px) scale(' + (0.8 + Math.min(0.4, (1 - k) * 2)) + ')'; if (p.life <= 0) { p.el.style.opacity = 0; p.el.style.display = 'none'; } }
   const tC = performance.now();
   // gun follows the reticle
   gun.visible = state === 'play' || state === 'paused'; if (!gun.visible) wandStar.visible = false;
