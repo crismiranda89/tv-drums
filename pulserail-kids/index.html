@@ -157,9 +157,18 @@
   #results table{font-size:24px}#results td:first-child{font-size:16px}
   #results .cheer{font-size:34px;font-weight:900;margin-bottom:10px}
   .tvua .song .n{font-size:32px}.tvua .btn{font-size:22px}
+  #boot{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+    background:radial-gradient(circle at 50% 45%,#7aa2f0,#4b4fb0 70%);color:#fff;font-family:inherit;text-align:center}
+  #boot b{font-size:44px;font-weight:900;letter-spacing:.04em;text-shadow:0 4px 0 #ff5f9e}
+  #boot i{display:flex;gap:10px}#boot i span{width:16px;height:16px;border-radius:50%;background:#fff;animation:bootB .9s infinite ease-in-out}
+  #boot i span:nth-child(2){animation-delay:.15s;background:#ffe14d}#boot i span:nth-child(3){animation-delay:.3s;background:#ff5f9e}
+  @keyframes bootB{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+  #boot small{font-size:15px;opacity:.85}#boot button{font:inherit;font-weight:800;font-size:18px;padding:10px 26px;border-radius:22px;border:0;background:#fff;color:#4b4fb0}
 </style>
 </head>
 <body>
+<div id="boot"><b>Pulse Rail Kids</b><i><span></span><span></span><span></span></i><small id="bootMsg">Loading…</small></div>
+<script>setTimeout(function () { var m = document.getElementById('bootMsg'); if (m && document.getElementById('boot')) m.innerHTML = 'Still loading… <br><br><button onclick="location.reload()">Try again</button>'; }, 20000);</script>
 <canvas id="c"></canvas>
 <div id="reticle"><u></u><i></i><b></b></div><div id="lock"><i></i><i></i><i></i><i></i></div><div id="flash"></div><div id="missed">BYE!</div><div id="audioMsg" class="hidden">Tap or press OK to resume audio</div>
 <div id="dmg"></div>
@@ -228,7 +237,7 @@ const TVUA = /Tizen|Web0S|webOS|SMART-TV|SmartTV|NetCast|HbbTV|BRAVIA|VIDAA|AFT[
 const LGTV = /Web0S|webOS|NetCast/i.test(UA);
 // ---------- graphics profile (kids v8): 'tv' = Lite, 'phone' = Low, 'pc' = Medium (the old High, trimmed), 'ultra' = High (new) ----------
 const GKEY = 'pulserail.gfx';
-const ULTRA_FILE = '', ULTRA_V = (/^(a|b|c|d|all)$/.test(QS.get('uv') || '') ? QS.get('uv') : ULTRA_FILE);   // v17 Ultra test variants
+const ULTRA_FILE = '', ULTRA_V = (/^(a|b|c|d|all|base)$/.test(QS.get('uv') || '') ? QS.get('uv') : ULTRA_FILE);   // v17 Ultra test variants
 const qGfx = QS.get('gfx');
 if (qGfx) { if (/^(tv|phone|pc|ultra|max)$/.test(qGfx)) localStorage.setItem(GKEY, qGfx); else localStorage.removeItem(GKEY); }
 let GPU = '';
@@ -245,14 +254,15 @@ const TIER = {
   ultra: { pr: 2,   aa: true,  segs: 8, back: true,  shards: 20, rows: 1.5, motes: 220, glow: true, trees: 4, hq: true, round: true, ultra: true, gunQ: 0.35 },   // v15 High = K14 Ultra
   max:   { pr: 2,   aa: true,  segs: 8, back: true,  shards: 20, rows: 1.5, motes: 220, glow: true, trees: 4, hq: true, round: true, ultra: true, grass: true, gunQ: 1, bop: true },   // v15 Ultra: + grass meadow
 }[PROFILE];
-if (ULTRA_V) Object.assign(TIER, { a: { glass: 1 }, b: { forest: 1 }, c: { meadow2: 1 }, d: { post: 1 }, all: { glass: 1, forest: 1, meadow2: 1, post: 1 } }[ULTRA_V]);
+if (ULTRA_V) Object.assign(TIER, { a: { glass: 1 }, b: { forest: 1 }, c: { meadow2: 1 }, d: { post: 1 }, all: { glass: 1, forest: 1, meadow2: 1, post: 1 }, base: {} }[ULTRA_V]);
+else if (PROFILE === 'max') Object.assign(TIER, { glass: 1, forest: 1, meadow2: 1, post: 1 });   // v19: Ultra has everything
 if (PROFILE === 'tv') document.documentElement.classList.add('tv');
 if (TVUA) document.documentElement.classList.add('tvua');
 
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K18' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
+const VERSION = 'K19' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1616,7 +1626,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v18' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v19' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1729,7 +1739,7 @@ function dbgUpdate(dt) {
 // kept on this device (localStorage) and sent to Jarvis at the end of the song.
 const RKEY = 'pulserailkids.rec', LKEY = 'pulserailkids.logq', AMKEY = 'pulserailkids.autoMeasure';
 let AUTO_MEASURE = localStorage.getItem(AMKEY) === '1';   // v9: Off by default, the Benchmark still measures
-const LOG_URL = /^192\.168\.68\.200(:8444)?$/.test(location.host) ? '/api/pulserail/log' : 'https://192.168.68.200:8444/api/pulserail/log';
+const LOG_URL = /github\.io$/.test(location.hostname) || location.protocol === 'file:' ? 'https://192.168.68.200:8444/api/pulserail/log' : '/api/pulserail/log';   // v19: any Jarvis address (LAN IP, Tailscale) posts to itself
 let REC = QS.has('rec') ? QS.get('rec') !== '0' : localStorage.getItem(RKEY) !== '0';   // test builds: on unless switched off
 { const q0 = (() => { try { return JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { return []; } })(), keep = q0.filter(r => r && r.version === VERSION);
   if (keep.length !== q0.length) localStorage.setItem(LKEY, JSON.stringify(keep)); }   // old versions' logs were re-sent again and again
@@ -2230,6 +2240,7 @@ if (QS.has('bench')) setTimeout(() => {
 buildWorld(0); buildEnemyGeos(PAL); applyPalMats(); warmShaders(); renderSongs(); ctlLabel(); hintText(); showOnly('title');
 setWeapon(weapon); setLevel(0); if (QS.has('debug') || localStorage.getItem(DKEY) === '1') setDebug(true);
 requestAnimationFrame(frame);
+requestAnimationFrame(() => { const b = $('boot'); if (b) b.remove(); });   // v19: the game is ready
 window.__pr = { get state() { return state; }, stats, startSong, fire, setAim: setAimPx, get beat() { return songBeat(); }, get profile() { return PROFILE; },
   get live() { return live.length; }, openQr, benchBegin, get bench() { return { on: BENCH, stage: benchStage, label: benchLabel }; }, detailUrl, get qrOpen() { return qrOpen; }, qrUrl, setRec, get rec() { return rec; }, logQueue, setWeapon, setKids, get kids() { return KIDS; }, setDebug, startProbe, setAutoTune, setLevel, get q() { return Q; }, get probe() { return probe; }, get probeRes() { return probeRes; }, get weapon() { return weapon; }, census: () => census(), info: () => R.info.render, get bullets() { return bullets.length; }, get chartLeft() { return chart.length; }, songs: SONGS, end: () => { if (run) { run.t0 -= 1e4; } } };
 </script>
