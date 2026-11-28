@@ -48,6 +48,7 @@
   .tvua #qrBox .qrL{font-size:22px}
   .probeNoDom #hud,.probeNoDom #reticle,.probeNoDom #lock,.probeNoDom .pop,.probeNoDom #fps,.probeNoDom #recChip,.probeNoDom #missed,.probeNoDom #flash{display:none!important}
   #benchBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:21;background:#0b0b14;border:2px solid rgba(255,255,255,.3);border-radius:14px;padding:20px 26px;text-align:center;color:#fff;font-weight:800}#benchBox .btn{margin-top:14px}
+  #qrBox .qrS{font-weight:800;font-size:15px;margin:2px 0 8px}#qrBox .qrS.ok{color:#6dffb0}#qrBox .qrS.bad{color:#ffb36e}.tvua #qrBox .qrS{font-size:20px}
   #fps{position:fixed;right:10px;bottom:10px;z-index:9;font:13px ui-monospace,Menlo,monospace;color:rgba(225,225,235,.85);
     background:rgba(0,0,0,.55);padding:6px 9px;border-radius:8px;cursor:pointer}
   .tvua #fps{right:3.5vw;bottom:4vh;font-size:18px;padding:8px 12px}
@@ -144,7 +145,7 @@
 <div id="fps" title="Click for the debug overlay"></div><div id="recChip" class="hidden"></div>
 <div id="benchBox" class="hidden"><div class="qrT">Benchmark: the game plays itself for about 2 minutes, then shows the QR codes.</div><button class="btn main" id="benchGo">Start (press OK)</button></div>
 <div id="qrBox" class="hidden"><div class="qrT">Scan both codes with your phone to send the play log to Jarvis <b id="qrN"></b></div><div class="qrs"><div><div class="qrL">1 · Summary</div><canvas id="qrCv"></canvas></div><div><div class="qrL" id="qrL2">2 · Detail</div><canvas id="qrCv2"></canvas></div></div>
-  <div class="qrK" id="qrK"></div><div class="row"><button class="btn main" id="qrDone">Sent ✓ remove from TV</button><button class="btn" id="qrNext">Next log</button><button class="btn" id="qrClose">Close</button></div></div>
+  <div class="qrK" id="qrK"></div><div class="qrS" id="qrS"></div><div class="row"><button class="btn main" id="qrDone">Sent ✓ remove from TV</button><button class="btn" id="qrNext">Next log</button><button class="btn" id="qrClose">Close</button></div></div>
 <div id="dbg" class="hidden"><div id="dbgHead"></div><div id="dbgVerdict" class="verdict"></div><canvas id="dbgBars" width="560" height="10"></canvas><canvas id="dbgGraph" width="560" height="110"></canvas><div id="dbgBody"></div></div>
 
 <div id="title" class="ov">
@@ -218,7 +219,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 11;
+const VERSION = 12;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1264,13 +1265,27 @@ function recStop(why) {
   try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e) { q.shift(); try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e2) {} }
   sendLogs();
 }
+// v12: direct send = best effort with a 5 s timeout. After a benchmark the QR codes open at once and stay;
+// the direct result is only written on the QR screen (the TV usually cannot reach Jarvis, so the phone scan is the real path).
+function postLog(r) {
+  return Promise.race([fetch(LOG_URL, { method: 'POST', mode: LOG_URL[0] === '/' ? 'same-origin' : 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(r) }),
+    new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 5000))]);
+}
+function markDirect(started, how) {
+  const q = logQueue(), r = q.find(x => x.started === started); if (!r) return;
+  r.direct = how; try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e) {} if (qrOpen) drawQr();
+}
 function sendLogs() {
   const q = logQueue(); if (!q.length) { recInfo(); return; }
+  if (BENCH) {   // benchmark: newest log, codes first, direct try in the background
+    BENCH = false; const r = q[q.length - 1]; qrI = q.length - 1; markDirect(r.started, 'trying'); openQr();
+    postLog(r).then(() => markDirect(r.started, 'ok')).catch(() => markDirect(r.started, 'failed'));
+    return;
+  }
   recChip('sending log…', 0);
-  const one = q[0], body = JSON.stringify(one);
-  fetch(LOG_URL, { method: 'POST', mode: LOG_URL[0] === '/' ? 'same-origin' : 'no-cors', headers: { 'Content-Type': 'text/plain' }, body })
-    .then(() => { if (BENCH) { BENCH = false; setTimeout(openQr, 1500); } const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
-    .catch(() => { recChip('log saved on this TV · Jarvis not reachable: use Send log by phone', 12); recInfo(); if (BENCH) { BENCH = false; setTimeout(openQr, 1500); } });
+  const one = q[0];
+  postLog(one).then(() => { const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
+    .catch(() => { recChip('log saved on this TV · use Send log by phone', 12); recInfo(); });
 }
 // ---------- send by phone (v9): the TV shows the log as a QR code, the phone opens a Jarvis page that uploads it ----------
 // A QR holds ~2 KB, so the QR carries a digest: 5 s buckets (10/20 s for long plays), the Measure result, device and events.
@@ -1348,6 +1363,9 @@ function drawQr() {
   $('qrN').textContent = (qrI + 1) + ' / ' + q.length;
   $('qrK').textContent = (typeof r.version === 'number' ? 'v' : '') + r.version + ' · ' + ((r.settings && r.settings.song) || '') + ' · ' + (r.started ? new Date(r.started).toLocaleString().slice(0, 17) : '') + ' · ' + (sm.fps || '?') + ' fps · ' + (sm.secs || 0) + ' s' + (r.why === 'bench' ? ' · benchmark' : '') + ' · phone on the home Wi-Fi';
   $('qrNext').classList.toggle('hidden', q.length < 2);
+  const st = { trying: ['Sending straight to Jarvis… (the codes work either way)', ''], ok: ['Sent straight to Jarvis ✓ · scanning is optional', 'ok'],
+    failed: ['Jarvis not reachable from the TV · scan both codes with your phone', 'bad'] }[r.direct] || ['Scan both codes with your phone', ''];
+  $('qrS').textContent = st[0]; $('qrS').className = 'qrS ' + st[1];
 }
 function openQr() { if (!logQueue().length) return; loadQr(() => { qrOpen = true; $('qrBox').classList.remove('hidden'); drawQr(); setTimeout(() => $('qrDone').focus(), 50); }); }
 function closeQr() { qrOpen = false; $('qrBox').classList.add('hidden'); recInfo(); }
