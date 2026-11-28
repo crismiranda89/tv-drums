@@ -240,7 +240,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K6', KIDGAME = true;
+const VERSION = 'K7', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -656,12 +656,6 @@ const gunGlow = new THREE.MeshBasicMaterial({ vertexColors: true });   // v3: ca
   const mk = (a, n, gl) => { const g = new THREE.Group(); g.add(new THREE.Mesh(shadeGeo(bake(a), GUNLIGHT), gunMat));
     if (n && n.p.length) g.add(new THREE.Mesh(bake(n), gunNeon)); if (gl && gl.p.length) g.add(new THREE.Mesh(bake(gl), gunGlow)); return g; };
   let a, n, gl;
-  // lollipop: a white stick and a big swirl disc (rings of colour on both faces)
-  a = Acc(); gl = Acc();
-  put(a, cylZ(0.012, 0.012, 0.36, 6), mtx(0, -0.02, 0.06, 1, 1, 1), 0xffffff);
-  [[0.11, 0.03, 0xff4f9a], [0.085, 0.034, 0xffffff], [0.062, 0.038, 0xffd23d], [0.04, 0.042, 0xffffff], [0.02, 0.046, 0x31c8ff]].forEach(([r, w, c]) =>
-    put(gl, cylX(r, w, 16), mtx(0, 0.07, 0.29, 1, 1, 1), c));
-  gunModels.lolly = mk(a, null, gl);
   // v4 magic wand: birch stick (white wood, dark bark marks), carved wooden handle, rounded white tip
   a = Acc(); gl = Acc();
   put(a, cylZ(0.016, 0.009, 0.36, 8), mtx(0, 0, 0.13, 1, 1, 1), 0xf1ebdc);
@@ -670,7 +664,7 @@ const gunGlow = new THREE.MeshBasicMaterial({ vertexColors: true });   // v3: ca
   put(a, cylZ(0.023, 0.02, 0.13, 10), mtx(0, 0, -0.1, 1, 1, 1), 0x7a4a26);
   for (const z of [-0.045, -0.155]) put(a, cylZ(0.026, 0.026, 0.014, 10), mtx(0, 0, z, 1, 1, 1), 0x5a3318);
   put(a, ICO1, mtx(0, 0, -0.175, 0.024, 0.024, 0.02), 0x5a3318);
-  put(gl, ICO1, mtx(0, 0, 0.315, 0.011, 0.011, 0.013), 0xffffff);
+  put(a, cylZ(0.011, 0.013, 0.02, 10), mtx(0, 0, 0.315, 1, 1, 1), 0xffc83a);   // v7: gold cap under the star
   gunModels.wand = mk(a, null, gl);
   // water cannon: chunky blue body, water tank on top, orange nozzle
   a = Acc(); n = Acc();
@@ -691,7 +685,7 @@ const gunGlow = new THREE.MeshBasicMaterial({ vertexColors: true });   // v3: ca
   for (const z of [0.155, 0.205]) put(gl, cylZ(0.04, 0.04, 0.012, 12), mtx(0, 0.035, z, 1, 1, 1), 0x6dff8a);
   for (const x of [-0.036, 0.036]) put(gl, BOXN, mtx(x, 0.03, 0.0, 0.004, 0.014, 0.22), 0x6dff8a);
   gunModels.laser = mk(a, null, gl);
-  gunKick.add(gunModels.lolly, gunModels.wand, gunModels.water, gunModels.laser);
+  gunKick.add(gunModels.wand, gunModels.water, gunModels.laser);
 })();
 function starTex() {
   const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d'); x.translate(64, 64);
@@ -720,6 +714,76 @@ function updBolts(dt) {
     t.sp.visible = t.life > 0; _bolV.lerpVectors(t.a, t.b, k);
     if (t.wob) { _bolV.x += Math.sin(t.ph + k * 9) * t.wob * (1 - k) * 0.6; _bolV.y += Math.cos(t.ph + k * 7) * t.wob * (1 - k) * 0.6; }
     t.sp.position.copy(_bolV); t.sp.scale.setScalar(t.size * (0.5 + k * 1.2)); t.sp.material.rotation += dt * 9; }
+}
+
+// ---------- v7 wand magic: star tip + sparkles (two Points pools, one draw call each while something sparkles) ----------
+function star5Tex() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d'); x.translate(64, 64);
+  const g = x.createRadialGradient(0, 0, 0, 0, 0, 64); g.addColorStop(0, 'rgba(255,240,170,.9)'); g.addColorStop(0.35, 'rgba(255,210,90,.35)'); g.addColorStop(1, 'rgba(255,200,80,0)');
+  x.fillStyle = g; x.fillRect(-64, -64, 128, 128);
+  x.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 15 : 38, a = -Math.PI / 2 + i * Math.PI / 5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath();
+  x.fillStyle = '#ffd84a'; x.fill(); x.lineWidth = 4; x.strokeStyle = '#fff6c8'; x.stroke();
+  x.fillStyle = 'rgba(255,255,255,.9)'; x.beginPath(); x.arc(0, -2, 8, 0, Math.PI * 2); x.fill();
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const wandStar = new THREE.Sprite(new THREE.SpriteMaterial({ map: star5Tex(), transparent: true, depthWrite: false, fog: false }));
+wandStar.position.set(0, 0, 0.345); wandStar.scale.setScalar(0.13); gunModels.wand.add(tag(wandStar, C.gun));
+const SPARKC = [0xffd23d, 0xff7ac8, 0x31c8ff, 0xa67cff, 0x6ddc5a, 0xffa53d];
+// one tiny shader: per-particle colour, alpha and size, normal blending (additive turned pastel stars white on the bright sky)
+const SPARK_VS = 'attribute vec4 aCol; attribute float aSize; uniform float uScale; varying vec4 vCol;\n' +
+  'void main() { vCol = aCol; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(96.0, aSize * uScale / max(0.05, -mv.z)); gl_Position = projectionMatrix * mv; }';
+const SPARK_FS = 'uniform sampler2D uMap; varying vec4 vCol;\n' +
+  'void main() { vec4 t = texture2D(uMap, gl_PointCoord); gl_FragColor = vec4(mix(vCol.rgb, vec3(1.0), pow(t.a, 6.0) * 0.55), t.a * vCol.a); }';
+const SPARKU = { uScale: { value: 500 }, uMap: { value: STARMAP } };
+function sparkPool(n, parent) {
+  const g = new THREE.BufferGeometry(), P = new Float32Array(n * 3), K = new Float32Array(n * 4), Z = new Float32Array(n);
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('aCol', new THREE.BufferAttribute(K, 4).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('aSize', new THREE.BufferAttribute(Z, 1).setUsage(THREE.DynamicDrawUsage));
+  const m = new THREE.Points(g, new THREE.ShaderMaterial({ uniforms: SPARKU, vertexShader: SPARK_VS, fragmentShader: SPARK_FS, transparent: true, depthWrite: false }));
+  m.frustumCulled = false; m.visible = false; m.renderOrder = 30; parent.add(tag(m, C.fx));
+  const ps = []; for (let i = 0; i < n; i++) ps.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), c: new THREE.Color(), life: 0, L: 1, g: 0, dr: 1.8, sz: 0.1, st: 0, tr: 0 });
+  return { m, g, P, K, Z, ps, i: 0, live: 0 };
+}
+// one particle: position, velocity, colour, life, delay, gravity, drag, size (world units), steady (no fade), trail (drops sparkles)
+function spark(pool, pos, vx, vy, vz, col, L, delay, grav, drag, size, steady, trailing) {
+  const q = pool.ps[pool.i]; pool.i = (pool.i + 1) % pool.ps.length;
+  q.p.copy(pos); q.v.set(vx, vy, vz); q.c.set(col).convertLinearToSRGB(); q.L = L; q.life = L + (delay || 0); q.g = grav || 0; q.dr = drag == null ? 1.8 : drag;
+  q.sz = size || 0.1; q.st = steady ? 1 : 0; q.tr = trailing ? 1 : 0; pool.live = 1;
+}
+const _sc = new THREE.Color();
+function updPool(pool, dt) {
+  if (!pool.live) return; let any = false; const P = pool.P, K = pool.K, Z = pool.Z;
+  for (let i = 0; i < pool.ps.length; i++) { const q = pool.ps[i], o = i * 3;
+    if (q.life > 0) q.life -= dt;
+    if (q.life <= 0 || q.life > q.L) { K[i * 4 + 3] = 0; if (q.life > 0) any = true; continue; }
+    any = true; q.v.y -= q.g * dt; q.p.addScaledVector(q.v, dt); q.v.multiplyScalar(1 - Math.min(1, dt * q.dr));
+    const k = q.life / q.L, a = q.st ? 1 : Math.min(1, k * 1.6) * (0.75 + 0.25 * Math.sin(q.life * 40 + i));   // fade + twinkle
+    P[o] = q.p.x; P[o + 1] = q.p.y; P[o + 2] = q.p.z; K[i * 4] = q.c.r; K[i * 4 + 1] = q.c.g; K[i * 4 + 2] = q.c.b; K[i * 4 + 3] = a; Z[i] = q.sz * (q.st ? 1 : 0.6 + 0.4 * k);
+    if (q.tr && Math.random() < 0.8) { _sc.copy(q.c).convertSRGBToLinear();
+      spark(pool, q.p, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, _sc, 0.32, 0, 0.4, 1.8, q.sz * 0.28); } }
+  pool.g.attributes.position.needsUpdate = true; pool.g.attributes.aCol.needsUpdate = true; pool.g.attributes.aSize.needsUpdate = true;
+  pool.m.visible = any; pool.live = any ? 1 : 0;
+  SPARKU.uScale.value = R.domElement.height / (2 * Math.tan(cam.fov * Math.PI / 360));
+}
+const trail = sparkPool(40, cam), sparks = sparkPool(220, scene);   // trail in camera space (follows the wand); orbs + their sparkles + bursts in the world
+const _o0 = new THREE.Vector3(), _o1 = new THREE.Vector3();
+function spellOrb(end, col, L, delay) {   // a rainbow orb flies from a little in front of the star to the target, dropping sparkles
+  wandStar.getWorldPosition(_o0); _o0.lerp(end, 0.12); _o1.subVectors(end, _o0).multiplyScalar(1 / L);
+  spark(sparks, _o0, _o1.x + (Math.random() - 0.5) * 1.2, _o1.y + (Math.random() - 0.5) * 1.2, _o1.z, col, L, delay, 0, 0, 0.42, true, true);
+}
+const _tip = new THREE.Vector3(), _tipLast = new THREE.Vector3(); let tipT = 0;
+function wandTick(dt, pulse) {
+  const on = weapon === 'wand' && gun.visible; wandStar.visible = on; if (!on) return;
+  wandStar.material.rotation += dt * 1.3; wandStar.scale.setScalar(0.13 * (1 + 0.18 * pulse + (muzzleT > 0 ? 0.5 : 0)));
+  wandStar.getWorldPosition(_tip); cam.worldToLocal(_tip); tipT -= dt;
+  if (_tip.distanceTo(_tipLast) > 0.006 || tipT <= 0) { tipT = 0.12;
+    spark(trail, _tip, (Math.random() - 0.5) * 0.04, -0.03 - Math.random() * 0.04, (Math.random() - 0.5) * 0.04, SPARKC[Math.floor(Math.random() * SPARKC.length)], 0.5 + Math.random() * 0.2, 0, 0.05, 1.8, 0.022);
+    _tipLast.copy(_tip); }
+}
+function starBurst(pos, delay) {   // a spell lands: little stars pop out
+  for (let i = 0; i < 14; i++) { const a = Math.random() * 6.28, b = Math.random() * 3.14, sp = 2 + Math.random() * 2.5;
+    spark(sparks, pos, Math.cos(a) * Math.sin(b) * sp, Math.cos(b) * sp + 1.2, Math.sin(a) * Math.sin(b) * sp, SPARKC[i % SPARKC.length], 0.6 + Math.random() * 0.25, delay, 3, 1.8, 0.7); }
 }
 
 // ---------- audio ----------
@@ -783,10 +847,10 @@ const SFX = {
   star(onBeat, m) { if (!ac) return; const t = ac.currentTime;   // lollipop: two bright twinkles
     [0, 0.05].forEach((d, i) => { const o = osc('sine', i ? 1760 : 1320, t + d, 0.12), g = gainTo(sfxBus, 0); env(g, t + d, 0.002, 0.3, 0.11); o.connect(g); });
     if (onBeat) { const p = osc('triangle', mf(m + 12), t, 0.2), pg = gainTo(sfxBus, 0); env(pg, t, 0.002, 0.22, 0.19); p.connect(pg); } },
-  spell(onBeat, m) { if (!ac) return; const t = ac.currentTime;   // wand: a quick magic run up + shimmer
-    const base = song ? song.key + 24 : 84; [0, 4, 7, 12].forEach((d, i) => { const tt = t + i * 0.03, o = osc('sine', mf(base + d), tt, 0.1), g = gainTo(sfxBus, 0); env(g, tt, 0.002, 0.18, 0.09); o.connect(g); });
-    const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000; const g = gainTo(sfxBus, 0); env(g, t, 0.01, 0.12, 0.2); f.connect(g); noise(t, 0.22).connect(f);
-    if (onBeat) { const p = osc('triangle', mf(m + 12), t, 0.22), pg = gainTo(sfxBus, 0); env(pg, t, 0.002, 0.2, 0.2); p.connect(pg); } },
+  spell(onBeat, m) { if (!ac) return; const t = ac.currentTime;   // v7 wand: a soft bell chime (sine + two bell partials)
+    const f = mf(m + 12);
+    [[1, 0.2, 0.7], [2.76, 0.05, 0.4], [5.4, 0.02, 0.25]].forEach(([r, a, d]) => { const o = osc('sine', f * r, t, d), g = gainTo(sfxBus, 0); env(g, t, 0.004, a, d); o.connect(g); });
+    if (onBeat) { const tt = t + 0.07, o = osc('sine', f * 1.5, tt, 0.6), g = gainTo(sfxBus, 0); env(g, tt, 0.004, 0.12, 0.6); o.connect(g); } },
   laser(onBeat, m) { if (!ac) return; const t = ac.currentTime;   // laser: a soft "pew" falling fast
     const o = osc('triangle', 1900, t, 0.14); o.frequency.exponentialRampToValueAtTime(420, t + 0.12); const og = gainTo(sfxBus, 0); env(og, t, 0.001, 0.32, 0.12); o.connect(og);
     if (onBeat) { const p = osc('sine', mf(m + 12), t, 0.18), pg = gainTo(sfxBus, 0); env(pg, t, 0.002, 0.22, 0.17); p.connect(pg); } },
@@ -970,17 +1034,16 @@ function tolerance() { return inMode === 'keys' ? 0.26 : inMode === 'touch' ? 0.
 // weapons: the shotgun fires a cone that hits up to 3 targets (a lone target takes 2 damage) - easier for kids
 const WKEY = 'pulserailkids.weapon';
 // v3 toys: lollipop (stars, one target), magic wand (sparkles, up to 2), water cannon (wide spray, up to 3), laser (precise and fast)
-const WIDS = ['lolly', 'wand', 'water', 'laser'];
+const WIDS = ['wand', 'water', 'laser'];
 const WPN = {
-  lolly: { name: 'Lollipop', short: 'Lollipop', cone: 0.1, max: 1, gap: 90, pellets: 1, muzzle: 0.41, mt: 0.07, ms: 0.45, mc: 0xffd23d, kick: 0.9, snd: 'star', bolt: { cols: [0xffe14d, 0xff7ac8, 0x7fe0ff, 0x8de86b], size: 0.9, L: 0.16 } },
-  wand: { name: 'Magic wand', short: 'Wand', cone: 0.15, max: 2, gap: 140, pellets: 2, muzzle: 0.33, mt: 0.09, ms: 0.6, mc: 0xc77dff, kick: 0.6, snd: 'spell', tr: { col: 0xc77dff, w: 0.5, L: 0.2 }, bolt: { cols: [0xc77dff, 0xff7ac8, 0xffe14d], size: 0.55, L: 0.24, n: 3, wob: 1 } },
+  wand: { name: 'Magic wand', short: 'Wand', cone: 0.15, max: 2, gap: 140, pellets: 2, muzzle: 0.345, mt: 0.09, ms: 0.5, mc: 0xffe9a0, kick: 0.5, snd: 'spell', bolt: { cols: [0xff5a8a, 0xffa53d, 0xffe14d, 0x6ddc5a, 0x31c8ff, 0xa67cff], size: 0.6, L: 0.26, n: 3, wob: 1, spark: 1 } },
   water: { name: 'Water cannon', short: 'Water', cone: 0.24, max: 3, gap: 180, pellets: 9, muzzle: 0.27, mt: 0.09, ms: 0.55, mc: 0x9fe8ff, kick: 1.6, snd: 'blast', dmg2: true, tr: { col: 0x7ad8ff, w: 1.7, L: 0.16 } },
   laser: { name: 'Laser', short: 'Laser', cone: 0.045, max: 1, gap: 60, pellets: 1, muzzle: 0.26, mt: 0.06, ms: 0.38, mc: 0x6dff8a, kick: 0.8, snd: 'laser', tr: { col: 0x6dff8a, w: 0.7, L: 0.17 } } };
-let weapon = WIDS.indexOf(QS.get('weapon')) >= 0 ? QS.get('weapon') : WIDS.indexOf(localStorage.getItem(WKEY)) >= 0 ? localStorage.getItem(WKEY) : 'lolly';
+let weapon = WIDS.indexOf(QS.get('weapon')) >= 0 ? QS.get('weapon') : WIDS.indexOf(localStorage.getItem(WKEY)) >= 0 ? localStorage.getItem(WKEY) : 'wand';
 function aimTol() { return tolerance() + WPN[weapon].cone; }
 function setWeapon(w) {
   weapon = w; localStorage.setItem(WKEY, w); const W = WPN[w];
-  for (const id of WIDS) gunModels[id].visible = id === w;
+  for (const id in gunModels) gunModels[id].visible = id === w;
   muzzle.position.z = W.muzzle; muzzleStar.position.z = W.muzzle + 0.02;
   document.querySelectorAll('.wpnSeg button').forEach(b => b.classList.toggle('on', b.dataset.w === w));
   $('wpnBadge').textContent = W.name.toUpperCase(); sizeReticle();
@@ -1015,7 +1078,9 @@ function fire() {
     else { const sp = W.cone * 0.8, ax = aim.x + (Math.random() - 0.5) * sp * 2 / Math.tan(cam.fov * Math.PI / 360) / cam.aspect, ay = aim.y + (Math.random() - 0.5) * sp * 2 / Math.tan(cam.fov * Math.PI / 360);
       _pv.set(ax, ay); ray.setFromCamera(_pv, cam); end = ray.ray.at(i ? 40 : 30, _pe); }
     if (W.tr) tracer(end, W.tr);
-    if (W.bolt) { const B = W.bolt; for (let b = 0; b < (B.n || 1); b++) bolt(end, B.cols[(stats.shots + b) % B.cols.length], B.size * (b ? 0.7 : 1), B.L, B.wob, b * 0.04); }
+    if (W.bolt) { const B = W.bolt; for (let b = 0; b < (B.n || 1); b++) { const col = B.cols[(stats.shots * 2 + b + i) % B.cols.length];
+        if (B.spark) spellOrb(end, col, B.L, b * 0.05); else bolt(end, col, B.size * (b ? 0.7 : 1), B.L, B.wob, b * 0.04); }
+      if (B.spark && i < hits.length) starBurst(end, B.L + 0.05); }
   }
   if (!hits.length) {   // a miss off the beat breaks the combo; a miss on the beat is just music
     stats.misses++; if (false) { loseCombo(); missText(); } updateHud(); return;
@@ -1172,7 +1237,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v6 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v7 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1681,7 +1746,7 @@ function frame(now) {
   updShards(dt); updWaves(dt);
   for (const r of rings) if (r.life > 0) { r.life -= dt; const k = 1 - r.life / 0.35; r.spr.scale.setScalar(r.size * (0.3 + k)); r.spr.material.opacity = 1 - k; if (r.life <= 0) r.spr.visible = false; }
   for (const b of bursts) if (b.life > 0) { b.life -= dt; const k = Math.max(0, b.life / b.max); b.spr.scale.setScalar(b.size * (1.4 - k * 0.4)); b.spr.material.opacity = k; if (b.life <= 0) b.spr.visible = false; }
-  updTracers(dt); updBolts(dt);
+  updTracers(dt); updBolts(dt); updPool(trail, dt); updPool(sparks, dt);
   if (dmgFlash > 0 || dmgShown) { dmgFlash = Math.max(0, dmgFlash - dt * 2.2); $('dmg').style.opacity = dmgFlash; dmgShown = dmgFlash > 0; }
   if (flashA > 0 || flashShown) { flashA = Math.max(0, flashA - dt * 2); $('flash').style.opacity = flashA; flashShown = flashA > 0; }
   if (missT > 0) { missT -= dt; $('missed').style.opacity = Math.min(1, missT * 2.5); if (missT <= 0) $('missed').style.opacity = 0; }
@@ -1689,11 +1754,11 @@ function frame(now) {
     p.el.style.transform = 'translate(' + (p.x - 40) + 'px,' + (p.y - (1 - k) * 40) + 'px) scale(' + (0.8 + Math.min(0.4, (1 - k) * 2)) + ')'; if (p.life <= 0) p.el.style.opacity = 0; }
   const tC = performance.now();
   // gun follows the reticle
-  gun.visible = state === 'play' || state === 'paused';
+  gun.visible = state === 'play' || state === 'paused'; if (!gun.visible) wandStar.visible = false;
   if (gun.visible) {
     _ndc.set(aim.x, aim.y); ray.setFromCamera(_ndc, cam); ray.ray.at(25, _wt); gun.lookAt(_wt);
     gunState.recoil = Math.max(0, gunState.recoil - dt * 9);
-    gunKick.rotation.x = -gunState.recoil * 0.4; gunKick.position.z = -gunState.recoil * 0.06;
+    gunKick.rotation.x = -gunState.recoil * 0.4; gunKick.position.z = -gunState.recoil * 0.06; wandTick(dt, pulse);
     muzzleT -= dt; const mOn = muzzleT > 0; muzzle.visible = muzzleStar.visible = mOn;
     if (mOn) { const W = WPN[weapon], k = muzzleT / W.mt; muzzle.scale.setScalar(0.35); muzzle.material.color.set(W.mc);
       muzzleStar.scale.setScalar(W.ms * (0.6 + 0.4 * k)); muzzleStar.material.color.set(W.mc); }
