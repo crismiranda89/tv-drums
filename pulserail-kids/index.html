@@ -168,6 +168,7 @@
   .corner.cl{left:14px}.corner.cr{right:14px}.corner:focus,.corner:hover{background:#ff4fa0;outline:none}
   .setNote{max-width:560px;margin:6px auto 4px;font-size:13px;line-height:1.4;opacity:.8;text-align:center}
   #settings .row{flex-wrap:wrap;justify-content:center}#setDoneBtn{margin-top:14px}#title{padding-top:58px}
+  body.guest .crisOnly,body.guest #fps,body:not(.guest) .guestOnly{display:none!important}
 </style>
 </head>
 <body>
@@ -198,22 +199,25 @@
 </div>
 <div id="settings" class="ov hidden">
   <h2>SETTINGS</h2>
-  <div class="gfxRow">Graphics <div class="seg gfxSeg"></div></div>
-  <div class="setNote">Auto picks the best level this device can run (Ultra on a strong machine).</div>
-  <div class="gfxRow">Auto-tune <div class="seg autoSeg"></div></div>
-  <div class="setNote">Keeps the game smooth: if the picture starts to stutter it switches off small details for a moment, and brings them back when there is room. Off = the level you picked stays fixed.</div>
-  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button></div>
-  <div class="gfxRow">Measure while playing <div class="seg amSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
-  <div class="row"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button><button class="btn" id="benchBtn">Benchmark</button><button class="btn" id="measureBtn">Measure graphics cost</button></div>
+  <div class="gfxRow">Who's playing <div class="seg modeSeg"></div></div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span></div>
+  <div class="row"><button class="btn repBtn">📤 Send report to Cris</button><button class="btn qrBtn hidden crisOnly">Send log by phone</button></div>
+  <div class="setNote guestOnly">Play a song or two with Record plays on, then press Send report and send it to Cris (WhatsApp, e-mail…). It has the game's speed and scores, nothing else.</div>
+  <div class="crisOnly gfxRow">Graphics <div class="seg gfxSeg"></div></div>
+  <div class="setNote crisOnly">Auto picks the best level this device can run (Ultra on a strong machine).</div>
+  <div class="gfxRow crisOnly">Auto-tune <div class="seg autoSeg"></div></div>
+  <div class="setNote crisOnly">Keeps the game smooth: if the picture starts to stutter it switches off small details for a moment, and brings them back when there is room. Off = the level you picked stays fixed.</div>
+  <div class="gfxRow crisOnly">Measure while playing <div class="seg amSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
+  <div class="row crisOnly"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button><button class="btn" id="benchBtn">Benchmark</button><button class="btn" id="measureBtn">Measure graphics cost</button></div>
   <div class="hint" id="hint"></div>
   <button class="btn main" id="setDoneBtn">Done</button>
-  <div id="vers"></div>
+  <div id="vers" class="crisOnly"></div>
 </div>
 <div id="pause" class="ov hidden">
   <h2>PAUSED ⏸</h2>
   <button class="btn main" id="resumeBtn">Resume</button>
   <button class="btn" id="restartBtn">Restart</button>
-  <button class="btn" id="recalBtn">Calibrate aim &amp; timing</button>
+  <button class="btn crisOnly" id="recalBtn">Calibrate aim &amp; timing</button>
   <button class="btn" id="quitBtn">Songs</button>
   <div class="row"><button class="btn homeBtn">⌂ Toybox</button><button class="btn setBtn">⚙ Settings</button></div>
   <div class="gfxRow">Toy <div class="seg wpnSeg"></div></div>
@@ -223,7 +227,7 @@
   <div class="stars" id="resGrade"></div><div class="cheer" id="resCheer"></div>
   <div class="nb" id="resNew"></div>
   <table id="resTable"></table>
-  <div class="row"><button class="btn main" id="retryBtn">Retry</button><button class="btn" id="songsBtn">Songs</button><button class="btn homeBtn">⌂ Toybox</button><button class="btn qrBtn hidden">Send log by phone</button></div>
+  <div class="row"><button class="btn main" id="retryBtn">Retry</button><button class="btn" id="songsBtn">Songs</button><button class="btn homeBtn">⌂ Toybox</button><button class="btn qrBtn hidden crisOnly">Send log by phone</button><button class="btn repBtn guestOnly">📤 Send report</button></div>
 </div>
 <div id="calib" class="ov hidden"><div id="calDot"></div><div id="calText"></div></div>
 <div id="test" class="ov hidden">
@@ -277,7 +281,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K22' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
+const VERSION = 'K23' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -1614,6 +1618,29 @@ $('retryBtn').onclick = () => startSong(song.idx);
 $('songsBtn').onclick = () => toTitle();
 $('recalBtn').onclick = () => startCalib(false);
 $('measureBtn').onclick = () => { setFrom = 'pause'; closeSettings(); resumeGame(); startProbe(); };
+// v23: Guest / Cris mode
+const MKEY = 'pulserail.mode', HOMENET = /^(localhost|127\.0\.0\.1|192\.168\.|10\.|.*\.ts\.net$)/.test(location.hostname);
+let MODE = QS.get('mode') === 'cris' || QS.get('mode') === 'guest' ? QS.get('mode') : localStorage.getItem(MKEY) || (HOMENET ? 'cris' : 'guest');
+function setMode(m) { MODE = m; localStorage.setItem(MKEY, m); document.body.classList.toggle('guest', m === 'guest'); recEvent('mode ' + m); recInfo();
+  document.querySelectorAll('.modeSeg button').forEach((b, i) => b.classList.toggle('on', (i === 0) === (m === 'guest'))); }
+document.querySelectorAll('.modeSeg').forEach(seg => { segBtn(seg, 'Guest', MODE === 'guest', () => setMode('guest')); segBtn(seg, 'Cris', MODE === 'cris', () => setMode('cris')); });
+document.body.classList.toggle('guest', MODE === 'guest');
+const SKEY = 'pulserailkids.sent';
+function reportLogs() { let kept = []; try { kept = JSON.parse(localStorage.getItem(SKEY) || '[]'); } catch (e) {}
+  const all = kept.concat(logQueue()), seen = {}; return all.filter(r => r && !seen[r.started] && (seen[r.started] = 1)).slice(-4); }
+function sendReport() {
+  const logs = reportLogs();
+  if (!logs.length) { recChip(REC ? 'play a song first, then send the report' : 'switch Record plays on and play a song first', 6); return; }
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, ''), name = 'pulserail-report-' + stamp + '.json';
+  const body = JSON.stringify({ app: 'pulserail-kids', version: VERSION, made: new Date().toISOString(), logs }), file = new File([body], name, { type: 'application/json' });
+  recEvent('report ' + logs.length);
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Pulse Rail report', text: 'Pulse Rail Kids test report (' + VERSION + ')' }).then(() => recChip('report sent ✓ thank you!', 6)).catch(() => {});
+    return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000); recChip('report saved as ' + name + ' · send that file to Cris', 10);
+}
+document.querySelectorAll('.repBtn').forEach(b => { b.onclick = e => { e.stopPropagation(); SFX.click(); sendReport(); }; });
 // v22: settings panel + Toybox home
 let setFrom = null;
 function openSettings() { setFrom = state === 'paused' ? 'pause' : 'title'; $('measureBtn').classList.toggle('hidden', setFrom !== 'pause'); showOnly('settings'); }
@@ -1681,7 +1708,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v22' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v23' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1807,7 +1834,7 @@ function setRec(on) {
   if (on && state === 'play' && !rec) recStart(); if (!on && rec) recStop('switched off');
   recInfo();
 }
-function recInfo() { const q = logQueue(); document.querySelectorAll('.qrBtn').forEach(b => b.classList.toggle('hidden', !q.length)); document.querySelectorAll('.recInfo').forEach(x => { x.textContent = (REC ? ' logs go to Jarvis' : '') + (q.length ? ' · ' + q.length + ' waiting' : ''); }); }
+function recInfo() { const q = logQueue(); document.querySelectorAll('.qrBtn').forEach(b => b.classList.toggle('hidden', !q.length)); document.querySelectorAll('.recInfo').forEach(x => { x.textContent = typeof MODE !== 'undefined' && MODE === 'guest' ? (REC ? ' saved on this device' : '') : (REC ? ' logs go to Jarvis' : '') + (q.length ? ' · ' + q.length + ' waiting' : ''); }); }
 function logQueue() { try { return JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { return []; } }
 function recStart() {
   rec = { game: 'pulserail', edition: 'kids', version: VERSION, started: new Date().toISOString(), url: location.href.split('#')[0],
@@ -1869,6 +1896,7 @@ function recStop(why) {
     verdict: fr < 18.5 ? 'smooth' : cpu > fr * 0.6 ? 'cpu-bound' : 'gpu-bound' + (top ? ' (top layer ' + top[0] + ' ' + top[1].toFixed(1) + ' ms)' : '') };
   delete r.t0;
   const q = logQueue(); q.push(r); while (q.length > 4) q.shift();
+  try { const k = JSON.parse(localStorage.getItem(SKEY) || '[]'); k.push(r); while (k.length > 3) k.shift(); localStorage.setItem(SKEY, JSON.stringify(k)); } catch (e) { try { localStorage.setItem(SKEY, JSON.stringify([r])); } catch (e2) {} }
   try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e) { q.shift(); try { localStorage.setItem(LKEY, JSON.stringify(q)); } catch (e2) {} }
   sendLogs();
 }
@@ -1889,10 +1917,11 @@ function sendLogs() {
     postLog(r).then(() => markDirect(r.started, 'ok')).catch(() => markDirect(r.started, 'failed'));
     return;
   }
+  if (MODE === 'guest' && LOG_URL[0] !== '/') { recInfo(); recChip('play saved · Send report shares it with Cris', 5); return; }   // v23: friends' browsers never knock on the home network
   recChip('sending log…', 0);
   const one = q[0];
   postLog(one).then(() => { const q2 = logQueue(); q2.shift(); localStorage.setItem(LKEY, JSON.stringify(q2)); recChip('log sent to Jarvis ✓', 6); if (q2.length) setTimeout(sendLogs, 500); else recInfo(); })
-    .catch(() => { recChip('log saved on this TV · use Send log by phone', 12); recInfo(); });
+    .catch(() => { recChip(MODE === 'guest' ? 'play saved · Send report shares it with Cris' : 'log saved on this TV · use Send log by phone', MODE === 'guest' ? 5 : 12); recInfo(); });
 }
 // ---------- send by phone (v9): the TV shows the log as a QR code, the phone opens a Jarvis page that uploads it ----------
 // A QR holds ~2 KB, so the QR carries a digest: 5 s buckets (10/20 s for long plays), the Measure result, device and events.
