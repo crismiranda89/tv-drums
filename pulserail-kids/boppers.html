@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pulse Rail Kids · Bopper mock-ups</title>
+<style>
+  html,body{margin:0;height:100%;background:#8fd8ff;overflow:hidden;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;-webkit-tap-highlight-color:transparent}
+  canvas{display:block;position:fixed;inset:0;width:100%;height:100%;touch-action:manipulation}
+  .lab{position:fixed;pointer-events:none;text-align:center;font-weight:900;letter-spacing:.04em;text-shadow:0 2px 0 rgba(80,40,160,.55),0 0 12px rgba(80,40,160,.35)}
+  .lab b{display:block;font-size:clamp(16px,3.6vmin,30px)}
+  .lab small{display:block;font-weight:700;font-size:clamp(11px,2.1vmin,16px);opacity:.92;margin-top:2px}
+  #top{position:fixed;left:0;right:0;top:0;padding:10px 12px calc(env(safe-area-inset-top) + 6px);text-align:center;font-weight:900;font-size:clamp(14px,3vmin,22px);
+    background:linear-gradient(180deg,rgba(90,50,190,.55),rgba(90,50,190,0));pointer-events:none}
+  #top span{display:block;font-weight:700;font-size:clamp(11px,2vmin,15px);opacity:.9}
+  #fps{position:fixed;right:8px;bottom:calc(env(safe-area-inset-bottom) + 8px);font:12px ui-monospace,monospace;background:rgba(0,0,0,.35);padding:3px 7px;border-radius:8px}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="top">Bopper mock-ups for Ultra<span>tap one to pop it · they come back</span></div>
+<div class="lab" id="l0"><b>A · Fluffy</b><small>soft fur, wobbly antennae</small></div>
+<div class="lab" id="l1"><b>B · Knight</b><small>foam sword + star shield</small></div>
+<div class="lab" id="l2"><b>C · Plush</b><small>felt, stitches, button eyes</small></div>
+<div class="lab" id="l3"><b>D · Jelly</b><small>see-through gummy, candy heart</small></div>
+<div id="fps"></div>
+<script src="../three-0.160.0.min.js"></script>
+<script>
+'use strict';
+const canvas = document.getElementById('c');
+const R = new THREE.WebGLRenderer({ canvas, antialias: true }); R.outputColorSpace = THREE.SRGBColorSpace;
+R.setPixelRatio(Math.min(2, devicePixelRatio || 1)); R.setScissorTest(true);
+const V = new THREE.Vector3(), rnd = (a, b) => a + Math.random() * (b - a);
+
+// ---------- shared bits ----------
+function lights(sc) { sc.add(new THREE.HemisphereLight(0xfff6ff, 0x6a7a9a, 1.25)); const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(-2, 4, 3); sc.add(d); const r = new THREE.DirectionalLight(0xb8d8ff, 0.7); r.position.set(3, 1, -3); sc.add(r); }
+const lam = c => new THREE.MeshLambertMaterial({ color: c });
+const std = (c, r, m) => new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.6 : r, metalness: m || 0 });
+function eyes(g, y, z, s, button) {
+  for (const sx of [-1, 1]) {
+    if (button) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.11 * s, 0.11 * s, 0.05 * s, 32).rotateX(Math.PI / 2), std(0x2a1a3a, 0.35)); b.position.set(sx * 0.18 * s, y, z); g.add(b);
+      for (let k = 0; k < 4; k++) { const h = new THREE.Mesh(new THREE.CircleGeometry(0.017 * s, 12), lam(0xd8c8f0)); h.position.set(sx * 0.18 * s + (k % 2 - 0.5) * 0.07 * s, y + ((k >> 1) - 0.5) * 0.07 * s, z + 0.027 * s); g.add(h); }
+      continue; }
+    const w = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), std(0xffffff, 0.25)); w.scale.set(0.15 * s, 0.18 * s, 0.1 * s); w.position.set(sx * 0.17 * s, y, z); g.add(w);
+    const p = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), std(0x231a3a, 0.2)); p.scale.set(0.08 * s, 0.1 * s, 0.05 * s); p.position.set(sx * 0.155 * s, y - 0.015 * s, z + 0.075 * s); g.add(p);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.scale.setScalar(0.026 * s); hl.position.set(sx * 0.13 * s, y + 0.035 * s, z + 0.115 * s); g.add(hl);
+  }
+}
+function smile(g, y, z, s) { const m = new THREE.Mesh(new THREE.TorusGeometry(0.11 * s, 0.022 * s, 10, 32, Math.PI), std(0x5a1a3a, 0.5)); m.rotation.z = Math.PI; m.position.set(0, y, z); g.add(m);
+  for (const sx of [-1, 1]) { const c = new THREE.Mesh(new THREE.CircleGeometry(0.075 * s, 24), new THREE.MeshBasicMaterial({ color: 0xff9ac4, transparent: true, opacity: 0.75 })); c.position.set(sx * 0.3 * s, y + 0.06 * s, z - 0.03 * s); c.rotation.y = sx * 0.45; g.add(c); } }
+function antennae(g, y, col, tip, s) { const out = [];
+  for (const sx of [-1, 1]) { const a = new THREE.Group(); a.position.set(sx * 0.16 * s, y, 0); a.rotation.z = -sx * 0.35;
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.022 * s, 0.03 * s, 0.42 * s, 12), std(col, 0.6)); st.position.y = 0.21 * s; a.add(st);
+    const t = new THREE.Mesh(new THREE.SphereGeometry(0.1 * s, 24, 16), std(tip, 0.4)); t.position.y = 0.46 * s; a.add(t); g.add(a); out.push(a); }
+  return out; }
+function feet(g, col, s) { for (const sx of [-1, 1]) { const f = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), std(col, 0.7)); f.scale.set(0.2 * s, 0.12 * s, 0.27 * s); f.position.set(sx * 0.27 * s, 0.4 * s, 0.1 * s); g.add(f); } }
+function stage(sc, col) {   // grassy turntable
+  const d = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.35, 0.18, 48), lam(col)); d.position.y = -0.09; sc.add(d);
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(0.62, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.005; sc.add(sh);
+  const bl = new THREE.Group(), bg = new THREE.ConeGeometry(0.025, 0.22, 4);
+  for (let i = 0; i < 90; i++) { const a = Math.random() * 6.283, r = 0.75 + Math.random() * 0.5, b = new THREE.Mesh(bg, lam(new THREE.Color(col).offsetHSL(rnd(-0.03, 0.03), 0, rnd(-0.06, 0.1)))); b.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r); b.rotation.set(rnd(-0.3, 0.3), 0, rnd(-0.3, 0.3)); bl.add(b); }
+  sc.add(bl); return bl; }
+
+// ---------- A: fluffy (fur shells) ----------
+function furMat(col, layer) {
+  return new THREE.ShaderMaterial({ uniforms: { uL: { value: layer }, uC: { value: new THREE.Color(col) }, uT: { value: 0 } },
+    vertexShader: `uniform float uL; uniform float uT; varying vec2 vU; varying vec3 vN; varying vec3 vV;
+      void main() { vU = uv; vec3 p = position + normal * uL * 0.11; p.y -= uL * uL * 0.035; p.x += sin(uT * 2.0 + position.y * 4.0) * uL * uL * 0.02;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uL; uniform vec3 uC; varying vec2 vU; varying vec3 vN; varying vec3 vV;
+      float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      void main() { vec2 q = vU * vec2(190.0, 95.0), c = floor(q), f = fract(q) - 0.5; float r = h(c), len = 0.55 + 0.45 * r;
+        if (uL > 0.02 && (uL > len || length(f) > 0.5 * (1.0 - uL / len))) discard;
+        float lt = 0.55 + 0.45 * max(dot(vN, normalize(vec3(-0.4, 0.8, 0.6))), 0.0), rim = pow(1.0 - max(dot(vN, vV), 0.0), 2.0);
+        vec3 col = uC * (0.55 + 0.5 * uL / max(len, 0.01)) * lt + vec3(rim * 0.25 * uL);
+        gl_FragColor = vec4(col, 1.0);
+        #include <colorspace_fragment>
+      }` }); }
+function makeFluffy() {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body); const col = 0xffc84a, geo = new THREE.SphereGeometry(0.6, 64, 40), mats = [];
+  for (let i = 0; i < 18; i++) { const m = furMat(col, i / 17); mats.push(m); const sh = new THREE.Mesh(geo, m); sh.scale.set(1, 0.97, 0.92); sh.position.y = 1.0; body.add(sh); }
+  const face = new THREE.Group(); face.position.y = 1.0; body.add(face); eyes(face, 0.18, 0.62, 1); smile(face, -0.08, 0.64, 1);
+  const ant = antennae(body, 1.6, 0xffb43a, 0xff5f9e, 1); feet(g, 0xffa93a, 1.05);
+  return { g, body, upd: (t) => { mats.forEach(m => m.uniforms.uT.value = t); ant.forEach((a, i) => a.rotation.z = (i ? -0.35 : 0.35) + Math.sin(t * 5 + i) * 0.12); body.position.y = Math.abs(Math.sin(t * 2.4)) * 0.08; body.scale.set(1 + Math.sin(t * 4.8) * 0.02, 1 - Math.sin(t * 4.8) * 0.02, 1); } };
+}
+// ---------- B: knight (foam sword, star shield) ----------
+function makeKnight() {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body); const col = 0x7de86b;
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.6, 48, 32), std(col, 0.55)); b.scale.set(1, 0.96, 0.9); b.position.y = 1.0; body.add(b);
+  const helm = new THREE.Mesh(new THREE.SphereGeometry(0.64, 48, 24, 0, 6.283, 0, 1.25), std(0xd8dcf0, 0.25, 0.7)); helm.position.y = 1.03; body.add(helm);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 12, 64), std(0xffc83a, 0.3, 0.6)); rim.rotation.x = Math.PI / 2; rim.position.y = 1.23; body.add(rim);
+  const plume = new THREE.Group(); plume.position.y = 1.66; body.add(plume);
+  for (let i = 0; i < 7; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 14), std(0xff5f9e, 0.6)); p.position.set(0, Math.sin(i / 6 * 2.4) * 0.16, -0.08 - i * 0.07); p.scale.set(1, 1.2, 1.4); plume.add(p); }
+  const face = new THREE.Group(); face.position.y = 0.95; body.add(face); eyes(face, 0.12, 0.56, 1); smile(face, -0.12, 0.57, 1); feet(g, 0x5fc85a, 1);
+  const arm = new THREE.Group(); arm.position.set(0.7, 0.86, 0.22); body.add(arm);
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), std(0xffffff, 0.5)); arm.add(hand);
+  const sword = new THREE.Group(); sword.position.set(0, 0, 0.02); arm.add(sword);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.22, 16), std(0xff5f5f, 0.7)); grip.position.y = -0.02; sword.add(grip);
+  const guard = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.24, 8, 16), std(0xffd23d, 0.5)); guard.rotation.z = Math.PI / 2; guard.position.y = 0.1; sword.add(guard);
+  const blade = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.62, 12, 24), std(0x6fd8ff, 0.85)); blade.position.y = 0.5; sword.add(blade);   // soft foam noodle
+  for (let i = 0; i < 4; i++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.008, 8, 32), std(0xffffff, 0.8)); r.rotation.x = Math.PI / 2; r.position.y = 0.28 + i * 0.13; sword.add(r); }
+  const shield = new THREE.Group(); shield.position.set(-0.58, 0.95, 0.22); shield.rotation.y = -0.5; body.add(shield);
+  shield.add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 48).rotateX(Math.PI / 2), std(0x7a6cff, 0.5)));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 10, 48), std(0xffd23d, 0.35, 0.5)); shield.add(ring);
+  const st = new THREE.Shape(); for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283 + Math.PI / 2, r = i % 2 ? 0.07 : 0.17; i ? st.lineTo(Math.cos(a) * r, Math.sin(a) * r) : st.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+  const star = new THREE.Mesh(new THREE.ExtrudeGeometry(st, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 3 }), std(0xffd23d, 0.4)); star.position.z = 0.03; shield.add(star);
+  return { g, body, upd: (t) => { const s = Math.sin(t * 2.2); arm.rotation.z = -0.35 + s * 0.4; arm.rotation.x = 0.2 + Math.max(0, s) * 0.55; plume.rotation.x = Math.sin(t * 4) * 0.1; body.position.y = Math.abs(Math.sin(t * 2.2)) * 0.06; } };
+}
+// ---------- C: plush (felt, stitches, buttons) ----------
+function feltTex(base) { const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)'; const r = Math.random() * 1.6 + 0.4; x.fillRect(Math.random() * 256, Math.random() * 256, r, r * 3); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); return t; }
+function makePlush() {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const felt = new THREE.MeshStandardMaterial({ map: feltTex('#ff9ac8'), roughness: 1 });
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.6, 48, 32), felt); b.scale.set(1, 0.95, 0.88); b.position.y = 1.0; body.add(b);
+  const seam = new THREE.Group(); seam.position.y = 1.0; body.add(seam);   // stitches round the middle
+  for (let i = 0; i < 30; i++) { const a = i / 30 * 6.283, d = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.05, 4, 8), lam(0xffffff)); if (Math.sin(a) < -0.35) continue; d.position.set(Math.cos(a) * 0.605, Math.sin(a) * 0.575, -0.12); d.rotation.z = a; seam.add(d); }   // seam over the top of the head
+  const patch = new THREE.Mesh(new THREE.CircleGeometry(0.13, 6), new THREE.MeshStandardMaterial({ map: feltTex('#8fd0ff'), roughness: 1 })); patch.position.set(0.32, 0.72, 0.43); patch.rotation.y = 0.6; body.add(patch);
+  const ears = [];
+  for (const sx of [-1, 1]) { const e = new THREE.Group(); e.position.set(sx * 0.33, 1.48, 0); body.add(e); ears.push(e);
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), felt); ear.scale.set(0.13, 0.28, 0.07); ear.position.set(sx * 0.12, 0.18, 0); ear.rotation.z = -sx * 0.5; e.add(ear);
+    const inn = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), new THREE.MeshStandardMaterial({ map: feltTex('#ffe0ef'), roughness: 1 })); inn.scale.set(0.08, 0.19, 0.03); inn.position.set(sx * 0.13, 0.17, 0.05); inn.rotation.z = -sx * 0.5; e.add(inn); }
+  const face = new THREE.Group(); face.position.y = 1.0; body.add(face); eyes(face, 0.12, 0.53, 1, true); smile(face, -0.12, 0.53, 1);
+  const tag = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.01), lam(0xffffff)); tag.position.set(-0.4, 0.62, -0.38); tag.rotation.set(0.3, 2.4, 0.2); body.add(tag);
+  feet(g, 0xff7ab4, 1);
+  return { g, body, upd: (t) => { ears.forEach((e, i) => e.rotation.z = Math.sin(t * 3 + i * 1.3) * 0.18); body.rotation.z = Math.sin(t * 1.6) * 0.06; body.position.y = Math.abs(Math.sin(t * 1.6)) * 0.05; } };
+}
+// ---------- D: jelly (see-through gummy with a candy heart) ----------
+function makeJelly() {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body); const col = new THREE.Color(0x6fd8ff);
+  const jm = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uC: { value: col }, uT: { value: 0 } },
+    vertexShader: `uniform float uT; varying vec3 vN; varying vec3 vV; varying float vY;
+      void main() { vec3 p = position; float w = sin(uT * 3.2 + p.y * 3.0) * 0.025; p.xz *= 1.0 + w; vY = p.y; vec4 mv = modelViewMatrix * vec4(p, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform vec3 uC; varying vec3 vN; varying vec3 vV; varying float vY;
+      void main() { float f = pow(1.0 - abs(dot(vN, vV)), 2.2), sp = pow(max(dot(reflect(-normalize(vec3(-0.4, 0.8, 0.5)), vN), vV), 0.0), 40.0);
+        vec3 c = uC * (0.75 + 0.35 * (vY + 0.6)) + vec3(0.45) * f + vec3(1.0) * sp;
+        gl_FragColor = vec4(c, 0.42 + 0.5 * f + sp);
+        #include <colorspace_fragment>
+      }` });
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.6, 64, 40), jm); b.scale.set(1, 0.95, 0.9); b.position.y = 1.0; b.renderOrder = 2; body.add(b);
+  const hs = new THREE.Shape(); hs.moveTo(0, -0.12); hs.bezierCurveTo(0.2, 0.02, 0.12, 0.17, 0, 0.08); hs.bezierCurveTo(-0.12, 0.17, -0.2, 0.02, 0, -0.12);
+  const heart = new THREE.Mesh(new THREE.ExtrudeGeometry(hs, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 6, curveSegments: 24 }), std(0xff4f8a, 0.25)); heart.position.set(0, 0.92, -0.03); body.add(heart);
+  const sp = []; for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); m.userData.o = [rnd(-0.35, 0.35), rnd(0.65, 1.3), rnd(-0.3, 0.3), rnd(0, 6)]; body.add(m); sp.push(m); }
+  const face = new THREE.Group(); face.position.y = 1.0; body.add(face); eyes(face, 0.14, 0.55, 1); smile(face, -0.1, 0.55, 1);
+  const ant = antennae(body, 1.5, 0x6fd8ff, 0xffe14d, 1); feet(g, 0x4fb8e8, 1);
+  return { g, body, upd: (t) => { jm.uniforms.uT.value = t; heart.rotation.y = t * 1.5; const sq = Math.sin(t * 3.2); body.scale.set(1 + sq * 0.04, 1 - sq * 0.05, 1 + sq * 0.04);
+    sp.forEach(m => { const o = m.userData.o; m.position.set(o[0], o[1] + Math.sin(t + o[3]) * 0.05, o[2]); m.scale.setScalar(0.6 + 0.4 * Math.sin(t * 3 + o[3])); }); ant.forEach((a, i) => a.rotation.z = (i ? -0.35 : 0.35) + Math.sin(t * 4 + i) * 0.1); } };
+}
+
+// ---------- four stages, one canvas ----------
+const CH = [[makeFluffy, 0x9be36a, 0xffe7b0], [makeKnight, 0x86d870, 0xd6f0ff], [makePlush, 0xa8e07a, 0xffe0f0], [makeJelly, 0x8fe08a, 0xd8ecff]].map(([mk, grass, sky], i) => {
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(sky); lights(sc); const blades = stage(sc, grass); const c = mk(); sc.add(c.g);
+  const cam = new THREE.PerspectiveCamera(34, 1, 0.1, 50); cam.position.set(0, 1.55, 4.6); cam.lookAt(0, 0.95, 0);
+  const conf = new THREE.Group(); sc.add(conf);
+  return { sc, cam, c, conf, pop: 0, gone: 0, blades, rect: [0, 0, 1, 1] };
+});
+// tap = pop: squash, burst of confetti and stars, then bounce back
+const CONF_G = new THREE.BoxGeometry(0.06, 0.06, 0.012), STAR_COLS = [0xff5a8a, 0xffa53d, 0xffe14d, 0x6ddc5a, 0x31c8ff, 0xa67cff, 0xffffff];
+let AC = null; function popSnd() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime, o = AC.createOscillator(), gn = AC.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(1400, t + 0.09); gn.gain.setValueAtTime(0.25, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.18); o.connect(gn).connect(AC.destination); o.start(t); o.stop(t + 0.2); } catch (e) {} }
+function pop(s) { if (s.pop > 0 || s.gone > 0) return; s.pop = 0.22; popSnd();
+  for (let i = 0; i < 70; i++) { const m = new THREE.Mesh(CONF_G, new THREE.MeshBasicMaterial({ color: STAR_COLS[i % STAR_COLS.length], side: THREE.DoubleSide })); m.position.set(0, 1.0, 0.1);
+    m.userData.v = new THREE.Vector3(rnd(-1, 1), rnd(0.3, 1.6), rnd(-0.6, 1)).multiplyScalar(rnd(2.2, 4)); m.userData.r = new THREE.Vector3(rnd(-9, 9), rnd(-9, 9), rnd(-9, 9)); m.userData.life = rnd(1, 1.6); s.conf.add(m); } }
+canvas.addEventListener('pointerdown', e => { const s = CH.find(s => e.clientX >= s.rect[0] && e.clientX < s.rect[0] + s.rect[2] && e.clientY >= s.rect[1] && e.clientY < s.rect[1] + s.rect[3]); if (s) pop(s); });
+function layout() { const w = innerWidth, h = innerHeight, cols = 2, rows = 2, cw = w / cols, chh = h / rows;
+  R.setSize(w, h, false);
+  CH.forEach((s, i) => { const cx = (i % cols) * cw, cy = Math.floor(i / cols) * chh; s.rect = [cx, cy, cw, chh]; s.cam.aspect = cw / chh;
+    s.cam.fov = cw / chh < 0.75 ? 46 : 34; s.cam.updateProjectionMatrix(); const l = document.getElementById('l' + i); l.style.left = cx + 'px'; l.style.width = cw + 'px'; l.style.top = (cy + chh - (w < h ? 64 : 58)) + 'px'; }); }
+addEventListener('resize', layout); layout();
+let last = performance.now(), fN = 0, fT = 0;
+function loop(now) { requestAnimationFrame(loop); const dt = Math.min(0.05, (now - last) / 1000); last = now; const t = now / 1000;
+  fN++; fT += dt; if (fT > 0.5) { document.getElementById('fps').textContent = Math.round(fN / fT) + ' fps'; fN = 0; fT = 0; }
+  const H = innerHeight;
+  CH.forEach((s, i) => { s.c.g.rotation.y = Math.sin(t * 0.5 + i) * 0.7; s.c.upd(t + i * 0.7);
+    if (s.pop > 0) { s.pop -= dt; const k = 1 - s.pop / 0.22; s.c.g.scale.set(1 + k * 0.35, 1 - k * 0.25, 1 + k * 0.35); if (s.pop <= 0) { s.c.g.visible = false; s.gone = 1.1; } }
+    else if (s.gone > 0) { s.gone -= dt; if (s.gone <= 0) { s.c.g.visible = true; s.back = 0.45; } }
+    else if (s.back > 0) { s.back -= dt; const k = 1 - s.back / 0.45, e = 1 + Math.sin(k * Math.PI * 2.5) * (1 - k) * 0.35; s.c.g.scale.setScalar(Math.max(0.01, k < 0.3 ? k / 0.3 : e)); }
+    else s.c.g.scale.setScalar(1);
+    for (let j = s.conf.children.length - 1; j >= 0; j--) { const m = s.conf.children[j], u = m.userData; u.life -= dt; if (u.life <= 0) { s.conf.remove(m); m.material.dispose(); continue; }
+      u.v.y -= 6 * dt; u.v.multiplyScalar(1 - dt * 0.8); m.position.addScaledVector(u.v, dt); m.rotation.x += u.r.x * dt; m.rotation.y += u.r.y * dt; m.rotation.z += u.r.z * dt; if (m.position.y < 0.02) { m.position.y = 0.02; u.v.set(0, 0, 0); } }
+    s.blades.rotation.y = t * 0.05;
+    const [x, y, w, h] = s.rect; R.setViewport(x, H - y - h, w, h); R.setScissor(x, H - y - h, w, h); R.render(s.sc, s.cam); });
+}
+requestAnimationFrame(loop);
+</script></body></html>
