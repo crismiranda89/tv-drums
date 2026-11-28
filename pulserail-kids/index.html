@@ -238,8 +238,8 @@ const PROFILE = /^(tv|phone|pc|ultra)$/.test(STORED || '') ? STORED : (TVUA ? 't
 const TIER = {
   tv:    { pr: Math.min(1, 1280 / Math.max(1, innerWidth)), aa: false, segs: 5, back: false, shards: 6,  rows: 2.6, motes: 0,   glow: false },
   phone: { pr: 1.5, aa: false, segs: 6, back: true,  shards: 10, rows: 1.9, motes: 60,  glow: true },
-  pc:    { pr: 1.25, aa: false, segs: 7, back: true, shards: 12, rows: 1.5, motes: 100, glow: true, trees: 3 },
-  ultra: { pr: 1.5, aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true, trees: 4, hq: true },
+  pc:    { pr: 1.5, aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true, trees: 4, hq: true },   // v12: the K11 High
+  ultra: { pr: 1.5, aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true, trees: 4, hq: true, round: true },
 }[PROFILE];
 if (PROFILE === 'tv') document.documentElement.classList.add('tv');
 if (TVUA) document.documentElement.classList.add('tvua');
@@ -247,7 +247,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' || PROFILE === 'ultra' ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K11', KIDGAME = true;
+const VERSION = 'K12', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -410,6 +410,7 @@ function tree(acc, x, z, sc, rnd, pal, far) {   // round, pine or blossom tree: 
     put(acc, ICO0, mtx(x, th + r * 0.75, z, r * 1.15, r * 0.85, r * 1.15, 0, rnd() * 3, 0), pick(pal.bloom), dk);
   }
 }
+const RING_B = RAINBOW.map((_, b) => new THREE.RingGeometry(7.2 - b * 0.34 - 0.185, 7.2 - b * 0.34 + 0.185, 48, 1, 0, Math.PI));
 function buildSegment(pal, rnd, idx) {
   const lit = Acc(), neon = Acc(), win = Acc();
   put(lit, BOXN, mtx(0, -0.5, -SEG / 2, 12, 1, SEG), pal.floor);
@@ -425,11 +426,15 @@ function buildSegment(pal, rnd, idx) {
   for (let k = 0; k < 4; k++) put(win, BOXN, mtx(0, 0.01, -(k * 6 + 1.5), 0.14, 0.02, 2.6), pal.neonA, 0.8);
   // gate across the street at the start of every segment (flashes on the downbeat)
   // rainbow arch over the street (flat bands, 2 triangles each piece: cheap on the TV)
-  for (let b = 0; b < RAINBOW.length; b++) { const Rb = 7.2 - b * 0.34, N = 12;
+  if (TIER.round) for (let b = 0; b < RAINBOW.length; b++) put(neon, RING_B[b], mtx(0, 0, -0.5 - b * 0.01, 1, 1, 1), RAINBOW[b]);   // v12 High: a true half circle
+  else for (let b = 0; b < RAINBOW.length; b++) { const Rb = 7.2 - b * 0.34, N = 12;
     for (let k = 0; k < N; k++) { const a0 = Math.PI * k / N, a1 = Math.PI * (k + 1) / N,
         x0 = Math.cos(a0) * Rb, y0 = Math.sin(a0) * Rb * 0.95, x1 = Math.cos(a1) * Rb, y1 = Math.sin(a1) * Rb * 0.95;
       put(neon, PLANEN, mtx((x0 + x1) / 2, (y0 + y1) / 2, -0.5 - b * 0.01, Math.hypot(x1 - x0, y1 - y0) * 1.08, 0.36, 1, 0, 0, Math.atan2(y1 - y0, x1 - x0)), RAINBOW[b]); } }
-  for (const sx of [-1, 1]) put(lit, ICO0, mtx(sx * 6.4, 0.5, -0.5, 1.1, 0.8, 1.1), pal.cloud);
+  if (TIER.round) for (const sx of [-1, 1]) [[0, 0.62, 0, 0.95], [0.78, 0.38, 0.15, 0.68], [-0.74, 0.36, -0.1, 0.66], [0.32, 1.05, -0.15, 0.6], [-0.36, 0.98, 0.2, 0.58],
+      [0.1, 0.3, 0.75, 0.6], [-0.2, 0.3, -0.75, 0.6], [1.25, 0.22, -0.2, 0.42], [-1.2, 0.22, 0.25, 0.44], [0, 1.4, 0, 0.42]].forEach(([x, y, z, r], i) =>
+      put(lit, ICO1, mtx(sx * 6.4 + x * sx, y, -0.5 + z, r * 1.05, r * 0.92, r, 0, i, 0), pal.cloud, 1.02 + (i % 3) * 0.03));   // v12 High: fluffy puffs
+  else for (const sx of [-1, 1]) put(lit, ICO0, mtx(sx * 6.4, 0.5, -0.5, 1.1, 0.8, 1.1), pal.cloud);
   // forest along both sides: grass, bushes at the kerb, a row of trees, a row of bigger trees behind (and a third row on High)
   for (const s of [-1, 1]) {
     put(lit, BOXN, mtx(s * 18.5, -0.45, -SEG / 2, 20, 1, SEG), pal.grass);
@@ -1261,7 +1266,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v11 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v12 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
