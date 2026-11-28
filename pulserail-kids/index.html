@@ -227,27 +227,28 @@ const LGTV = /Web0S|webOS|NetCast/i.test(UA);
 // ---------- graphics profile (kids v8): 'tv' = Lite, 'phone' = Low, 'pc' = Medium (the old High, trimmed), 'ultra' = High (new) ----------
 const GKEY = 'pulserail.gfx';
 const qGfx = QS.get('gfx');
-if (qGfx) { if (/^(tv|phone|pc|ultra)$/.test(qGfx)) localStorage.setItem(GKEY, qGfx); else localStorage.removeItem(GKEY); }
+if (qGfx) { if (/^(tv|phone|pc|ultra|max)$/.test(qGfx)) localStorage.setItem(GKEY, qGfx); else localStorage.removeItem(GKEY); }
 let GPU = '';
 try { const g = document.createElement('canvas').getContext('webgl'), x = g && g.getExtension('WEBGL_debug_renderer_info');
   GPU = x ? String(g.getParameter(x.UNMASKED_RENDERER_WEBGL)) : ''; const lc = g && g.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); } catch (e) {}
 const PHONEUA = !TVUA && (/Android|iPhone|iPad|Mobile/i.test(UA) || (matchMedia('(pointer:coarse)').matches && Math.min(innerWidth, innerHeight) < 900));
 const WEAKGPU = /Mali|PowerVR|Adreno|VideoCore|Vivante|Realtek|MStar|Novatek|SwiftShader|llvmpipe/i.test(GPU);
 const STORED = localStorage.getItem(GKEY);
-const PROFILE = /^(tv|phone|pc|ultra)$/.test(STORED || '') ? STORED : (TVUA ? 'tv' : PHONEUA ? 'phone' : WEAKGPU ? 'tv' : 'pc');
+const PROFILE = /^(tv|phone|pc|ultra|max)$/.test(STORED || '') ? STORED : (TVUA ? 'tv' : PHONEUA ? 'phone' : WEAKGPU ? 'tv' : 'pc');
 const TIER = {
   tv:    { pr: Math.min(1, 1280 / Math.max(1, innerWidth)), aa: false, segs: 5, back: false, shards: 6,  rows: 2.6, motes: 0,   glow: false },
   phone: { pr: 1.5, aa: false, segs: 6, back: true,  shards: 10, rows: 1.9, motes: 60,  glow: true },
   pc:    { pr: 1.5, aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true, trees: 4, hq: true },   // v12: the K11 High
   ultra: { pr: 1.5, aa: true,  segs: 8, back: true,  shards: 16, rows: 1.5, motes: 160, glow: true, trees: 4, hq: true, round: true },
+  max:   { pr: 2,   aa: true,  segs: 8, back: true,  shards: 20, rows: 1.5, motes: 220, glow: true, trees: 4, hq: true, round: true, ultra: true },   // v13 Ultra: phones / iPads
 }[PROFILE];
 if (PROFILE === 'tv') document.documentElement.classList.add('tv');
 if (TVUA) document.documentElement.classList.add('tvua');
 
-const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: PROFILE === 'pc' || PROFILE === 'ultra' ? 'high-performance' : 'default' });
+const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K12', KIDGAME = true;
+const VERSION = 'K13', KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -335,19 +336,21 @@ const BOXN = new THREE.BoxGeometry(1, 1, 1).toNonIndexed(), PLANEN = new THREE.P
 const ICO0 = new THREE.IcosahedronGeometry(1, 0).toNonIndexed(), ICO_LOW = ICO0, ICO1 = new THREE.IcosahedronGeometry(1, 1).toNonIndexed(), PYR = new THREE.CylinderGeometry(0, 0.72, 1, 4, 1).toNonIndexed();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3(), _c = new THREE.Color();
 function mtx(x, y, z, sx, sy, sz, rx, ry, rz) { _e.set(rx || 0, ry || 0, rz || 0); _q.setFromEuler(_e); return _m.compose(_v.set(x, y, z), _q, _s.set(sx, sy, sz)); }
-function Acc() { return { p: [], c: [] }; }
+function Acc() { return { p: [], c: [], n: [] }; }
 function put(acc, geo, m, col, k) {
   const g = (geo.index ? geo.toNonIndexed() : geo.clone()).applyMatrix4(m); const a = g.attributes.position.array;
   _c.set(col); if (k) _c.multiplyScalar(k);
   for (let i = 0; i < a.length; i++) acc.p.push(a[i]);
   for (let i = 0; i < a.length; i += 3) acc.c.push(_c.r, _c.g, _c.b);
+  if (TIER.ultra && acc.n) { const nn = g.attributes.normal; if (nn) { const b = nn.array; for (let i = 0; i < b.length; i++) acc.n.push(b[i]); } else acc.noN = true; }
   g.dispose();
 }
 function bake(acc) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(acc.p, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(acc.c, 3));
-  g.computeVertexNormals(); g.computeBoundingSphere(); return g;
+  if (acc.n && !acc.noN && acc.n.length === acc.p.length) { g.setAttribute('normal', new THREE.Float32BufferAttribute(acc.n, 3)); g.normalizeNormals(); } else g.computeVertexNormals();
+  g.computeBoundingSphere(); return g;
 }
 // Bake the old Lambert lighting (hemisphere 1.6 + sun 2.2, flat per face) into the vertex colours.
 // Same look, but every surface becomes an unlit MeshBasicMaterial: no light loop per pixel, no shader recompiles.
@@ -393,11 +396,32 @@ beatWave(neonMat, '1.1');
 const winMat = new THREE.MeshBasicMaterial({ vertexColors: true }); beatWave(winMat, '1.6');
 const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 1.6);   // kept for palette data only, not in the scene
 const sunL = new THREE.DirectionalLight(0xffffff, 2.2); sunL.position.set(-0.5, 1, -0.8);
-let dropS = 0, neonKick = 0, skyMat = null, sunMesh = null, cloudMesh = null; const _dropC = new THREE.Color(); let world = null, PAL = PALS[0], segments = [], skyGroup = null, motes = null;
+let dropS = 0, neonKick = 0, skyMat = null, sunMesh = null, cloudMesh = null, sunRays = null; const _dropC = new THREE.Color(); let world = null, PAL = PALS[0], segments = [], skyGroup = null, motes = null;
 
 const CONE6 = new THREE.CylinderGeometry(0, 1, 1, 6, 1).toNonIndexed();
 const DISC = new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2).toNonIndexed();
-function tree(acc, x, z, sc, rnd, pal, far) {   // round, pine or blossom tree: 2-4 low-poly pieces (~40-70 triangles; High: rounder, ~200)
+const ICO2 = new THREE.IcosahedronGeometry(1, 2).toNonIndexed(), TRUNK7 = new THREE.CylinderGeometry(0.62, 1, 1, 7, 1).toNonIndexed(),
+  CONE10 = new THREE.CylinderGeometry(0, 1, 1, 10, 1).toNonIndexed(), BLADE = new THREE.CylinderGeometry(0, 1, 1, 3, 1, true).toNonIndexed();
+function treeU(acc, x, z, sc, rnd, pal, far) {   // v13 Ultra: domed canopies of round blobs, branches, layered pines, blossoms with flowers
+  const t = rnd(), dk = far ? 0.88 : 1, th = (1.3 + rnd() * 0.6) * sc, pick = a => a[Math.floor(rnd() * a.length)], B = far ? ICO1 : ICO2, bark = 0x9a6a4a;
+  put(acc, DISC, mtx(x + 0.3 * sc, 0.07, z + 0.2 * sc, 1.7 * sc, 1, 1.4 * sc), pal.grass, 0.6);
+  if (t < 0.8 && t >= 0.45) { const r = (1.35 + rnd() * 0.4) * sc, h = 1.45 * sc, col = pick(pal.pine), n = far ? 4 : 5;
+    put(acc, TRUNK7, mtx(x, th * 0.4, z, 0.16 * sc, th * 0.8, 0.16 * sc), bark, dk);
+    for (let i = 0; i < n; i++) put(acc, far ? CONE6 : CONE10, mtx(x, th * 0.55 + h * 0.5 + i * h * 0.5, z, r * (1 - i * 0.18), h, r * (1 - i * 0.18), 0, rnd() * 3, 0), col, dk * (0.9 + i * 0.06));
+    return; }
+  const blossom = t >= 0.8, r = (blossom ? 1.5 : 1.4) * (1 + rnd() * 0.35) * sc, col = blossom ? pick(pal.bloom) : pick(pal.leaf), cy = th + r * 0.7;
+  put(acc, TRUNK7, mtx(x, th / 2, z, 0.19 * sc, th, 0.19 * sc, 0, rnd() * 3, 0), bark, dk);
+  if (!far) for (const s2 of [-1, 1]) put(acc, TRUNK7, mtx(x + s2 * 0.32 * sc, th * 0.95, z + (rnd() - 0.5) * 0.2, 0.065 * sc, 0.95 * sc, 0.065 * sc, 0, 0, -s2 * 0.75), bark, dk);
+  put(acc, B, mtx(x, cy, z, r * 0.92, r * 0.8, r * 0.92, 0, rnd() * 3, 0), col, dk * 0.9);
+  const n = far ? 3 : 5;
+  for (let i = 0; i < n; i++) { const a = i / n * 6.283 + rnd(), rr = r * (0.52 + rnd() * 0.16);
+    put(acc, ICO1, mtx(x + Math.cos(a) * r * 0.58, cy + (rnd() - 0.35) * r * 0.4, z + Math.sin(a) * r * 0.58, rr, rr * 0.9, rr, 0, rnd() * 3, 0), col, dk * (0.95 + rnd() * 0.1)); }
+  put(acc, B, mtx(x + (rnd() - 0.5) * r * 0.3, cy + r * 0.62, z, r * 0.58, r * 0.52, r * 0.58, 0, rnd() * 3, 0), col, dk * 1.12);
+  if (!far) { const fc = blossom ? 0xffffff : pick(pal.bloom), nf = blossom ? 9 : (rnd() < 0.4 ? 6 : 0);   // little flowers / fruit dots on the canopy
+    for (let i = 0; i < nf; i++) { const a = rnd() * 6.283, e = rnd() * 1.1; put(acc, ICO0, mtx(x + Math.cos(a) * Math.cos(e) * r * 1.02, cy + 0.15 * r + Math.sin(e) * r * 0.85, z + Math.sin(a) * Math.cos(e) * r * 1.02, 0.11 * sc, 0.11 * sc, 0.11 * sc), fc, 1.1); } }
+}
+function tree(acc, x, z, sc, rnd, pal, far) {
+  if (TIER.ultra) return treeU(acc, x, z, sc, rnd, pal, far);   // round, pine or blossom tree: 2-4 low-poly pieces (~40-70 triangles; High: rounder, ~200)
   const t = rnd(), dk = far ? 0.84 : 1, th = (1.3 + rnd() * 0.6) * sc, pick = a => a[Math.floor(rnd() * a.length)], ICO0 = TIER.hq && !far ? ICO1 : ICO_LOW;
   if (TIER.hq) put(acc, DISC, mtx(x + 0.3 * sc, 0.07, z + 0.2 * sc, 1.5 * sc, 1, 1.3 * sc), pal.grass, 0.62);   // soft shadow on the grass
   put(acc, BOXN, mtx(x, th / 2, z, 0.34 * sc, th, 0.34 * sc, 0, rnd() * 3, 0), 0x9a6a4a, dk);
@@ -410,9 +434,15 @@ function tree(acc, x, z, sc, rnd, pal, far) {   // round, pine or blossom tree: 
     put(acc, ICO0, mtx(x, th + r * 0.75, z, r * 1.15, r * 0.85, r * 1.15, 0, rnd() * 3, 0), pick(pal.bloom), dk);
   }
 }
+const TOR_B = RAINBOW.map((_, b) => new THREE.TorusGeometry(7.2 - b * 0.34, 0.178, 6, 72, Math.PI));
+function softShade(g, lo, hi, tint) {   // v13: gentle top-lit shading for unlit vertex-coloured meshes
+  const n = g.attributes.normal.array, c = g.attributes.color.array;
+  for (let i = 0; i < n.length; i += 3) { const k = lo + (hi - lo) * (0.5 + 0.5 * n[i + 1]); c[i] *= k; c[i + 1] *= k; c[i + 2] *= tint ? k + (1 - k) * 0.6 : k; }
+  return g;
+}
 const RING_B = RAINBOW.map((_, b) => new THREE.RingGeometry(7.2 - b * 0.34 - 0.185, 7.2 - b * 0.34 + 0.185, 48, 1, 0, Math.PI));
 function buildSegment(pal, rnd, idx) {
-  const lit = Acc(), neon = Acc(), win = Acc();
+  const lit = Acc(), neon = Acc(), win = Acc(), rbw = Acc();
   put(lit, BOXN, mtx(0, -0.5, -SEG / 2, 12, 1, SEG), pal.floor);
   for (const s of [-1, 1]) {
     put(lit, BOXN, mtx(s * 7.25, -0.35, -SEG / 2, 2.5, 1, SEG), pal.walk);
@@ -426,14 +456,16 @@ function buildSegment(pal, rnd, idx) {
   for (let k = 0; k < 4; k++) put(win, BOXN, mtx(0, 0.01, -(k * 6 + 1.5), 0.14, 0.02, 2.6), pal.neonA, 0.8);
   // gate across the street at the start of every segment (flashes on the downbeat)
   // rainbow arch over the street (flat bands, 2 triangles each piece: cheap on the TV)
-  if (TIER.round) for (let b = 0; b < RAINBOW.length; b++) put(neon, RING_B[b], mtx(0, 0, -0.5 - b * 0.01, 1, 1, 1), RAINBOW[b]);   // v12 High: a true half circle
+  if (TIER.ultra) for (let b = 0; b < RAINBOW.length; b++) put(rbw, TOR_B[b], mtx(0, 0, -0.5, 1, 1, 0.55), RAINBOW[b]);   // v13 Ultra: rounded bands
+  else if (TIER.round) for (let b = 0; b < RAINBOW.length; b++) put(neon, RING_B[b], mtx(0, 0, -0.5 - b * 0.01, 1, 1, 1), RAINBOW[b]);   // v12 High: a true half circle
   else for (let b = 0; b < RAINBOW.length; b++) { const Rb = 7.2 - b * 0.34, N = 12;
     for (let k = 0; k < N; k++) { const a0 = Math.PI * k / N, a1 = Math.PI * (k + 1) / N,
         x0 = Math.cos(a0) * Rb, y0 = Math.sin(a0) * Rb * 0.95, x1 = Math.cos(a1) * Rb, y1 = Math.sin(a1) * Rb * 0.95;
       put(neon, PLANEN, mtx((x0 + x1) / 2, (y0 + y1) / 2, -0.5 - b * 0.01, Math.hypot(x1 - x0, y1 - y0) * 1.08, 0.36, 1, 0, 0, Math.atan2(y1 - y0, x1 - x0)), RAINBOW[b]); } }
   if (TIER.round) for (const sx of [-1, 1]) [[0, 0.62, 0, 0.95], [0.78, 0.38, 0.15, 0.68], [-0.74, 0.36, -0.1, 0.66], [0.32, 1.05, -0.15, 0.6], [-0.36, 0.98, 0.2, 0.58],
       [0.1, 0.3, 0.75, 0.6], [-0.2, 0.3, -0.75, 0.6], [1.25, 0.22, -0.2, 0.42], [-1.2, 0.22, 0.25, 0.44], [0, 1.4, 0, 0.42]].forEach(([x, y, z, r], i) =>
-      put(lit, ICO1, mtx(sx * 6.4 + x * sx, y, -0.5 + z, r * 1.05, r * 0.92, r, 0, i, 0), pal.cloud, 1.02 + (i % 3) * 0.03));   // v12 High: fluffy puffs
+      put(lit, TIER.ultra && r > 0.8 ? ICO2 : ICO1, mtx(sx * 6.4 + x * sx, y, -0.5 + z, r * 1.05, r * 0.92, r, 0, i, 0), pal.cloud, 1.02 + (i % 3) * 0.03));   // v12 High: fluffy puffs
+  if (TIER.ultra) for (const sx of [-1, 1]) for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283 + 0.4; put(lit, ICO1, mtx(sx * 6.4 + Math.cos(a) * 1.05, 0.18 + (i % 2) * 0.12, -0.5 + Math.sin(a) * 0.8, 0.36, 0.3, 0.36, 0, a, 0), pal.cloud, 1.06); }
   else for (const sx of [-1, 1]) put(lit, ICO0, mtx(sx * 6.4, 0.5, -0.5, 1.1, 0.8, 1.1), pal.cloud);
   // forest along both sides: grass, bushes at the kerb, a row of trees, a row of bigger trees behind (and a third row on High)
   for (const s of [-1, 1]) {
@@ -443,6 +475,16 @@ function buildSegment(pal, rnd, idx) {
     for (let z = -1 - rnd() * 2; z > -SEG; z -= 3.4 + rnd() * 2) tree(lit, s * (13.5 + rnd() * 3), z, 1.5 + rnd() * 0.6, rnd, pal, true);
     if ((TIER.trees || 2) >= 3) for (let z = -rnd() * 3; z > -SEG; z -= 5 + rnd() * 3) tree(lit, s * (20 + rnd() * 6), z, 2.2 + rnd() * 0.8, rnd, pal, true);
     if ((TIER.trees || 2) >= 4) for (let z = -rnd() * 4; z > -SEG; z -= 6 + rnd() * 4) tree(lit, s * (28 + rnd() * 6), z, 2.8 + rnd() * 0.8, rnd, pal, true);
+    if (TIER.ultra) {   // v13 Ultra: dense grass, petal flowers, round bushes
+      for (let i = 0; i < 110; i++) { const tx = s * (8.45 + Math.pow(rnd(), 1.6) * 14), tz = -rnd() * SEG, gc = pal.leaf[Math.floor(rnd() * 4)], hh = 0.32 + rnd() * 0.3;
+        for (let b = 0; b < 3; b++) put(lit, BLADE, mtx(tx + (b - 1) * 0.09, hh * 0.5 + 0.05, tz + (rnd() - 0.5) * 0.12, 0.05, hh, 0.05, (rnd() - 0.5) * 0.4, rnd() * 3, (b - 1) * 0.4), gc, 1.0 + rnd() * 0.12); }
+      for (let i = 0; i < 16; i++) { const fx = s * (8.5 + rnd() * 6), fz = -rnd() * SEG, pc = pal.bloom[Math.floor(rnd() * pal.bloom.length)];
+        put(lit, BLADE, mtx(fx, 0.17, fz, 0.025, 0.3, 0.025), 0x4cbf6a);
+        for (let p = 0; p < 5; p++) { const a = p / 5 * 6.283; put(lit, ICO0, mtx(fx + Math.cos(a) * 0.09, 0.33, fz + Math.sin(a) * 0.09, 0.075, 0.03, 0.075, 0, -a, 0), pc, 1.12); }
+        put(lit, ICO0, mtx(fx, 0.35, fz, 0.05, 0.04, 0.05), 0xffd23d, 1.1); }
+      for (let z = -2 - rnd() * 2; z > -SEG; z -= 4 + rnd() * 3) { const bx = s * (8.9 + rnd() * 0.4), bc = pal.leaf[Math.floor(rnd() * 4)];
+        for (let k = 0; k < 3; k++) put(lit, ICO1, mtx(bx + (k - 1) * 0.42 * s, 0.32 + (k === 1 ? 0.12 : 0), z + (rnd() - 0.5) * 0.4, 0.5, 0.42, 0.5, 0, rnd() * 3, 0), bc, 0.95 + k * 0.04); }
+    }
     if (TIER.hq) {   // v11 High: grass patches, tufts and pebbles
       for (let i = 0; i < 6; i++) put(lit, DISC, mtx(s * (10 + rnd() * 14), 0.055, -rnd() * SEG, 1.6 + rnd() * 2.2, 1, 1 + rnd() * 1.6, 0, rnd() * 3, 0), pal.grass, rnd() < 0.5 ? 0.88 : 1.1);
       for (let i = 0; i < 18; i++) { const tx = s * (8.45 + rnd() * (i < 10 ? 0.8 : 12)), tz = -rnd() * SEG, gc = pal.leaf[Math.floor(rnd() * 4)];
@@ -452,12 +494,19 @@ function buildSegment(pal, rnd, idx) {
   }
   const g = new THREE.Group();
   g.add(tag(new THREE.Mesh(shadeGeo(bake(lit), pal), litMat), C.city), tag(new THREE.Mesh(bake(neon), neonMat), C.neon), tag(new THREE.Mesh(bake(win), winMat), C.neon));
+  if (rbw.p.length) g.add(tag(new THREE.Mesh(softShade(bake(rbw), 0.86, 1.12), neonMat), C.neon));
   return g;
 }
-function sunTex(pal) {
+function raysTex(pal) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512; const x = cv.getContext('2d'); x.translate(256, 256);
+  const g = x.createRadialGradient(0, 0, 60, 0, 0, 256); g.addColorStop(0, 'rgba(255,240,180,.55)'); g.addColorStop(1, 'rgba(255,240,180,0)'); x.fillStyle = g; x.fillRect(-256, -256, 512, 512);
+  for (let i = 0; i < 16; i++) { x.rotate(Math.PI / 8); x.fillStyle = i % 2 ? pal.sun[0] : pal.sun[1]; x.beginPath(); x.moveTo(-22, -118); x.quadraticCurveTo(0, -(i % 2 ? 190 : 225), 22, -118); x.closePath(); x.fill(); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function sunTex(pal, noRays) {
   const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d');
   x.translate(128, 128); x.fillStyle = pal.sun[1];
-  for (let i = 0; i < 12; i++) { x.rotate(Math.PI / 6); x.beginPath(); x.moveTo(-13, -84); x.lineTo(0, -124); x.lineTo(13, -84); x.closePath(); x.fill(); }
+  if (!noRays) for (let i = 0; i < 12; i++) { x.rotate(Math.PI / 6); x.beginPath(); x.moveTo(-13, -84); x.lineTo(0, -124); x.lineTo(13, -84); x.closePath(); x.fill(); }
   const g = x.createLinearGradient(0, -80, 0, 80); g.addColorStop(0, pal.sun[0]); g.addColorStop(1, pal.sun[1]);
   x.fillStyle = g; x.beginPath(); x.arc(0, 0, 80, 0, Math.PI * 2); x.fill();
   x.fillStyle = '#5a3a2a'; x.beginPath(); x.ellipse(-26, -14, 8, 12, 0, 0, Math.PI * 2); x.ellipse(26, -14, 8, 12, 0, 0, Math.PI * 2); x.fill();
@@ -476,16 +525,20 @@ function buildSky(pal) {
   const sky = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
   sky.renderOrder = 20; grp.add(sky);   // v7: drawn after the city + skyline so covered sky pixels are never painted
   const sun = new THREE.Mesh(new THREE.PlaneGeometry(56, 56), new THREE.MeshBasicMaterial({ map: sunTex(pal), transparent: true, fog: false, depthWrite: false }));
-  sun.position.set(0, 14, -135); sun.renderOrder = -2; grp.add(sun); skyMat = sky.material; sunMesh = sun; _dropC.set(pal.neonA);
+  sun.position.set(0, 14, -135); sun.renderOrder = -2; grp.add(sun);
+  sunRays = null; if (TIER.ultra) { sun.material.map.dispose(); sun.material.map = sunTex(pal, true); sunRays = new THREE.Mesh(new THREE.PlaneGeometry(84, 84), new THREE.MeshBasicMaterial({ map: raysTex(pal), transparent: true, fog: false, depthWrite: false }));
+    sunRays.position.set(0, 14, -136); sunRays.renderOrder = -3; grp.add(sunRays); }   // v13 Ultra: rays on their own disc that slowly turns skyMat = sky.material; sunMesh = sun; _dropC.set(pal.neonA);
   const sk = Acc(), cl = Acc(), r = rng(7), skc = new THREE.Color(pal.hill).lerp(new THREE.Color(pal.fog), 0.25);
   for (let a = 0; a < 360; a += 9) { const ang = a * Math.PI / 180, h = 8 + r() * 14, R = 128;
-    put(sk, ICO0, mtx(Math.sin(ang) * R, -2, -Math.cos(ang) * R, 14 + r() * 6, h, 10, 0, -ang, 0), skc, 0.9 + r() * 0.2); }
+    put(sk, TIER.ultra ? ICO2 : ICO0, mtx(Math.sin(ang) * R, -2, -Math.cos(ang) * R, 14 + r() * 6, h, 10, 0, -ang, 0), skc, 0.9 + r() * 0.2); }
   for (let i = 0; i < 16; i++) { const ang = (i / 16 + r() * 0.04) * Math.PI * 2, R = 112, y = 26 + r() * 22, cx = Math.sin(ang) * R, cz = -Math.cos(ang) * R;
+    if (TIER.ultra) { for (let p = 0; p < 7; p++) { const o = (p - 3) * 2.9, rr = 3.6 + r() * 2 - Math.abs(p - 3) * 0.55, up = p % 2 ? 1.9 : 0.4;
+      put(cl, p % 2 ? ICO2 : ICO1, mtx(cx + Math.cos(ang) * o, y + up, cz + Math.sin(ang) * o, rr * 1.25, rr * (up > 1 ? 1 : 0.78), rr, 0, r() * 3, 0), pal.cloud, 1); } continue; }
     for (let p = 0; p < 4; p++) { const o = (p - 1.5) * 4.2, rr = 3.4 + r() * 2.6 - Math.abs(p - 1.5) * 0.6;
       put(TIER.hq ? cl : sk, TIER.hq ? ICO1 : ICO0, mtx(cx + Math.cos(ang) * o, y + (p % 2) * 1.6, cz + Math.sin(ang) * o, rr * 1.2, rr, rr, 0, r() * 3, 0), pal.cloud, 0.97 + r() * 0.05); } }
-  const skl = new THREE.Mesh(bake(sk), new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
+  const skl = new THREE.Mesh(TIER.ultra ? softShade(bake(sk), 0.82, 1.08) : bake(sk), new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
   skl.renderOrder = 19; grp.add(skl);   // v7: writes depth so the sky behind it is skipped
-  cloudMesh = null; if (TIER.hq) { cloudMesh = new THREE.Mesh(bake(cl), skl.material); cloudMesh.renderOrder = 19; grp.add(cloudMesh); }   // v11 High: drifting clouds
+  cloudMesh = null; if (TIER.hq) { cloudMesh = new THREE.Mesh(TIER.ultra ? softShade(bake(cl), 0.84, 1.04, true) : bake(cl), skl.material); cloudMesh.renderOrder = 19; grp.add(cloudMesh); }   // v11 High: drifting clouds
   return tag(grp, C.sky);
 }
 function buildWorld(palIdx) {
@@ -1249,7 +1302,7 @@ function setGfx(next) {
   const q = new URLSearchParams(location.search); q.delete('gfx'); q.delete('autotune'); const qs = q.toString();
   location.href = location.pathname + (qs ? '?' + qs.replace(/=(&|$)/g, '$1') : '');
 }
-const GFX_OPTS = [['tv', 'Lite'], ['phone', 'Low'], ['pc', 'Medium'], ['ultra', 'High']], TIER_NAME = { tv: 'Lite', phone: 'Low', pc: 'Medium', ultra: 'High' };
+const GFX_OPTS = [['tv', 'Lite'], ['phone', 'Low'], ['pc', 'Medium'], ['ultra', 'High'], ['max', 'Ultra']], TIER_NAME = { tv: 'Lite', phone: 'Low', pc: 'Medium', ultra: 'High', max: 'Ultra' };
 function segBtn(seg, label, on, fn, data) { const b = document.createElement('button'); b.textContent = label; if (on) b.className = 'on'; if (data) b.dataset.w = data;
   b.onclick = e => { e.stopPropagation(); SFX.click(); fn(b); }; seg.appendChild(b); return b; }
 document.querySelectorAll('.gfxSeg').forEach(seg => { segBtn(seg, 'Auto' + (!STORED ? ' (' + TIER_NAME[PROFILE] + ')' : ''), !STORED, () => setGfx('auto')); GFX_OPTS.forEach(o => segBtn(seg, o[1], STORED === o[0], () => setGfx(o[0]))); });
@@ -1266,7 +1319,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v12 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v13 · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -1723,6 +1776,7 @@ function frame(now) {
   NEONU.uWave.value = 0; NEONU.uBeat.value = frac; NEONU.uCamZ.value = cam.position.z;
   updSpeed(dt, dropS);
   if (cloudMesh) cloudMesh.rotation.y += dt * 0.008;
+  if (sunRays) sunRays.rotation.z += dt * 0.06;
   if (skyMat) { const a = dropS * (0.18 + 0.22 * barPulse); skyMat.color.setRGB(1 + a * (_dropC.r - 0.3), 1 + a * (_dropC.g - 0.3), 1 + a * (_dropC.b - 0.3));
     sunMesh.scale.setScalar(1 + 0.07 * pulse * (0.4 + dropS) + 0.08 * barPulse * dropS); }
   gunNeon.color.set(PAL.neonB).multiplyScalar(0.7 + pulse * 0.6);
