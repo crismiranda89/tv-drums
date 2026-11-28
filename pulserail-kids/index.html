@@ -164,6 +164,10 @@
   #boot i span:nth-child(2){animation-delay:.15s;background:#ffe14d}#boot i span:nth-child(3){animation-delay:.3s;background:#ff5f9e}
   @keyframes bootB{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
   #boot small{font-size:15px;opacity:.85}#boot button{font:inherit;font-weight:800;font-size:18px;padding:10px 26px;border-radius:22px;border:0;background:#fff;color:#4b4fb0}
+  .corner{position:absolute;top:14px;padding:9px 16px;border-radius:20px;border:2px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;font:inherit;font-weight:800;font-size:14px;letter-spacing:.06em;cursor:pointer}
+  .corner.cl{left:14px}.corner.cr{right:14px}.corner:focus,.corner:hover{background:#ff4fa0;outline:none}
+  .setNote{max-width:560px;margin:6px auto 4px;font-size:13px;line-height:1.4;opacity:.8;text-align:center}
+  #settings .row{flex-wrap:wrap;justify-content:center}#setDoneBtn{margin-top:14px}#title{padding-top:58px}
 </style>
 </head>
 <body>
@@ -188,13 +192,21 @@
 <div id="title" class="ov">
   <h1>PULSE<span>RAIL</span></h1><div class="kidsBadge">KIDS</div>
   <div class="tag">Pop the Boppers to the beat!</div>
+  <button class="corner cl homeBtn" aria-label="Toybox">⌂ Toybox</button><button class="corner cr setBtn" aria-label="Settings">⚙ Settings</button>
   <div id="songs"></div>
-  <div class="row"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button></div>
   <div class="gfxRow">Toy <div class="seg wpnSeg"></div></div>
-  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button> <button class="btn" id="benchBtn">Benchmark</button></div>
-  <div class="gfxRow">Measure while playing <div class="seg amSeg"></div><span style="opacity:.65;font-size:.8em;text-transform:none;letter-spacing:0">hides parts of the picture for a minute</span></div>
-  <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
+</div>
+<div id="settings" class="ov hidden">
+  <h2>SETTINGS</h2>
+  <div class="gfxRow">Graphics <div class="seg gfxSeg"></div></div>
+  <div class="setNote">Auto picks the best level this device can run (Ultra on a strong machine).</div>
+  <div class="gfxRow">Auto-tune <div class="seg autoSeg"></div></div>
+  <div class="setNote">Keeps the game smooth: if the picture starts to stutter it switches off small details for a moment, and brings them back when there is room. Off = the level you picked stays fixed.</div>
+  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button></div>
+  <div class="gfxRow">Measure while playing <div class="seg amSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
+  <div class="row"><button class="btn" id="testBtn">Controller test</button><button class="btn" id="ctlBtn"></button><button class="btn" id="benchBtn">Benchmark</button><button class="btn" id="measureBtn">Measure graphics cost</button></div>
   <div class="hint" id="hint"></div>
+  <button class="btn main" id="setDoneBtn">Done</button>
   <div id="vers"></div>
 </div>
 <div id="pause" class="ov hidden">
@@ -203,17 +215,15 @@
   <button class="btn" id="restartBtn">Restart</button>
   <button class="btn" id="recalBtn">Calibrate aim &amp; timing</button>
   <button class="btn" id="quitBtn">Songs</button>
-  <button class="btn" id="measureBtn">Measure graphics cost</button>
+  <div class="row"><button class="btn homeBtn">⌂ Toybox</button><button class="btn setBtn">⚙ Settings</button></div>
   <div class="gfxRow">Toy <div class="seg wpnSeg"></div></div>
-  <div class="gfxRow">Record plays <div class="seg recSeg"></div><span class="recInfo"></span> <button class="btn qrBtn hidden">Send log by phone</button></div>
-  <div class="gfxRow">Graphics <div class="seg gfxSeg"></div> Auto-tune <div class="seg autoSeg"></div> Debug <div class="seg dbgSeg"></div><span class="live"></span></div>
 </div>
 <div id="results" class="ov hidden">
   <div class="tag" id="resSong"></div>
   <div class="stars" id="resGrade"></div><div class="cheer" id="resCheer"></div>
   <div class="nb" id="resNew"></div>
   <table id="resTable"></table>
-  <div class="row"><button class="btn main" id="retryBtn">Retry</button><button class="btn" id="songsBtn">Songs</button><button class="btn qrBtn hidden">Send log by phone</button></div>
+  <div class="row"><button class="btn main" id="retryBtn">Retry</button><button class="btn" id="songsBtn">Songs</button><button class="btn homeBtn">⌂ Toybox</button><button class="btn qrBtn hidden">Send log by phone</button></div>
 </div>
 <div id="calib" class="ov hidden"><div id="calDot"></div><div id="calText"></div></div>
 <div id="test" class="ov hidden">
@@ -246,7 +256,12 @@ try { const g = document.createElement('canvas').getContext('webgl'), x = g && g
 const PHONEUA = !TVUA && (/Android|iPhone|iPad|Mobile/i.test(UA) || (matchMedia('(pointer:coarse)').matches && Math.min(innerWidth, innerHeight) < 900));
 const WEAKGPU = /Mali|PowerVR|Adreno|VideoCore|Vivante|Realtek|MStar|Novatek|SwiftShader|llvmpipe/i.test(GPU);
 const STORED = localStorage.getItem(GKEY);
-const PROFILE = ULTRA_V ? 'max' : /^(tv|phone|pc|ultra|max)$/.test(STORED || '') ? STORED : (TVUA ? 'tv' : PHONEUA ? 'phone' : WEAKGPU ? 'tv' : 'pc');
+const STRONGGPU = PHONEUA ? /Adreno \(TM\) (7[3-9]\d|8\d\d)|Immortalis|Mali-G7[1-9]\d|Mali-G78|Xclipse|Apple GPU/i.test(GPU)
+  : /Apple M\d|NVIDIA|GeForce|RTX|Radeon (RX|Pro)|Intel\(R\) Arc/i.test(GPU);   // v22: Auto = Ultra on a good machine
+const PROFS = ['tv', 'phone', 'pc', 'ultra', 'max'], AUTODOWN = localStorage.getItem('pulserail.autodown');
+const AUTO_PROF = TVUA ? 'tv' : PHONEUA ? (STRONGGPU ? 'max' : 'phone') : WEAKGPU ? 'tv' : STRONGGPU ? 'max' : 'pc';
+const PROFILE = ULTRA_V ? 'max' : /^(tv|phone|pc|ultra|max)$/.test(STORED || '') ? STORED
+  : PROFS.includes(AUTODOWN) && PROFS.indexOf(AUTODOWN) < PROFS.indexOf(AUTO_PROF) ? AUTODOWN : AUTO_PROF;
 const TIER = {
   tv:    { pr: Math.min(1, 1280 / Math.max(1, innerWidth)), aa: false, segs: 5, back: false, shards: 6,  rows: 2.6, motes: 0,   glow: false },
   phone: { pr: 1.5, aa: false, segs: 6, back: true,  shards: 10, rows: 1.9, motes: 60,  glow: true },
@@ -262,7 +277,7 @@ if (TVUA) document.documentElement.classList.add('tvua');
 const R = new THREE.WebGLRenderer({ canvas, antialias: TIER.aa, powerPreference: /^(pc|ultra|max)$/.test(PROFILE) ? 'high-performance' : 'default' });
 R.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIER.pr));
 R.outputColorSpace = THREE.SRGBColorSpace;
-const VERSION = 'K21' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
+const VERSION = 'K22' + (ULTRA_V ? ULTRA_V : ''), KIDGAME = true;
 // ---------- live quality knobs + Auto-tune ----------
 // Auto-tune (on by default, can be switched off) walks down a ladder, cheapest-looking loss first,
 // and climbs back when frames are fast again. Off = the chosen quality stays fixed.
@@ -290,12 +305,14 @@ function applyQ() {
   fogTarget = SEG * (Q.far - 1.2);
 }
 let fogTarget = 0;
-const GOV = { acc: 0, n: 0, slowWin: 0, fastWin: 0, cool: 0, ceil: 99, ceilT: 0 };
+const GOV = { low: 0, acc: 0, n: 0, slowWin: 0, fastWin: 0, cool: 0, ceil: 99, ceilT: 0 };
 function gfxWatch(dt) {   // 1 s windows: 2 slow windows step down, 6 fast windows step up
   if (document.hidden || dt > 0.25 || probe) return;
   GOV.acc += dt; GOV.n++; GOV.cool -= dt; GOV.ceilT -= dt; if (GOV.ceilT <= 0) GOV.ceil = 99;
   if (GOV.acc < 1) return;
   const avg = GOV.acc / GOV.n; GOV.acc = 0; GOV.n = 0;
+  if (!STORED && !ULTRA_V && !BENCH && state === 'play' && Q.lvl >= 4 && PROFILE !== 'tv' && ++GOV.low === 20) {   // v22: Auto was too ambitious here
+    localStorage.setItem('pulserail.autodown', PROFS[PROFS.indexOf(PROFILE) - 1]); recEvent('auto graphics: next time ' + PROFS[PROFS.indexOf(PROFILE) - 1]); }
   if (!autoTune || GOV.cool > 0) return;
   if (avg > 0.037) { GOV.fastWin = 0; if (++GOV.slowWin >= 2) { GOV.slowWin = 0; stepQ(1); } }
   else if (avg < 0.024) { GOV.slowWin = 0; if (++GOV.fastWin >= 6 && Q.lvl > 0 && Q.lvl - 1 < GOV.ceil) { GOV.fastWin = 0; stepQ(-1); } }
@@ -1568,7 +1585,7 @@ function showResults() {
 }
 
 // ---------- overlays & menus ----------
-const OVS = ['title', 'pause', 'results', 'calib', 'test'];
+const OVS = ['title', 'pause', 'results', 'calib', 'test', 'settings'];
 function showOnly(id) { OVS.forEach(o => $(o).classList.toggle('hidden', o !== id)); updateAimMode(); if (id) setTimeout(() => { const b = $(id).querySelector('button:not(.hidden)'); if (b) b.focus(); }, 30); }
 function renderSongs() {
   const box = $('songs'); box.innerHTML = '';
@@ -1596,7 +1613,16 @@ $('backBtn').onclick = e => { e.stopPropagation(); if (state === 'play' || state
 $('retryBtn').onclick = () => startSong(song.idx);
 $('songsBtn').onclick = () => toTitle();
 $('recalBtn').onclick = () => startCalib(false);
-$('measureBtn').onclick = () => { resumeGame(); startProbe(); };
+$('measureBtn').onclick = () => { setFrom = 'pause'; closeSettings(); resumeGame(); startProbe(); };
+// v22: settings panel + Toybox home
+let setFrom = null;
+function openSettings() { setFrom = state === 'paused' ? 'pause' : 'title'; $('measureBtn').classList.toggle('hidden', setFrom !== 'pause'); showOnly('settings'); }
+function closeSettings() { if (!setFrom) return; const f = setFrom; setFrom = null; showOnly(f); }
+const TOYBOX = /\/toybox\//.test(location.pathname) ? '../index.html' : /github\.io$/.test(location.hostname) ? 'https://crismiranda89.github.io/toybox/' : '/static/toybox/index.html';
+function goHome() { recEvent('home'); try { if (ac) ac.suspend(); } catch (e) {} location.href = TOYBOX; }
+document.querySelectorAll('.setBtn').forEach(b => { b.onclick = e => { e.stopPropagation(); SFX.click(); openSettings(); }; });
+document.querySelectorAll('.homeBtn').forEach(b => { b.onclick = e => { e.stopPropagation(); SFX.click(); goHome(); }; });
+$('setDoneBtn').onclick = e => { e.stopPropagation(); SFX.click(); closeSettings(); };
 $('testBtn').onclick = () => { initAudio(); state = 'test'; testSeen = {}; document.querySelectorAll('#test [data-k]').forEach(d => d.className = d.className.replace(/ ?(hit|seen)/g, '')); testLog('Waiting for input…'); showOnly('test'); };
 $('testDoneBtn').onclick = () => toTitle();
 $('testCalBtn').onclick = () => startCalib(false, 'test');
@@ -1634,7 +1660,7 @@ function navFocus(dir) {
 
 // ---------- graphics selector, auto-tune, weapon, versions ----------
 function setGfx(next) {
-  if (next === 'auto') { localStorage.removeItem(GKEY); localStorage.setItem(AKEY, '1'); } else localStorage.setItem(GKEY, next);
+  if (next === 'auto') { localStorage.removeItem(GKEY); localStorage.removeItem('pulserail.autodown'); localStorage.setItem(AKEY, '1'); } else localStorage.setItem(GKEY, next);
   const q = new URLSearchParams(location.search); q.delete('gfx'); q.delete('autotune'); const qs = q.toString();
   location.href = location.pathname + (qs ? '?' + qs.replace(/=(&|$)/g, '$1') : '');
 }
@@ -1655,7 +1681,7 @@ document.querySelectorAll('.wpnSeg').forEach(seg => WIDS.forEach(w => segBtn(seg
 $('fps').onclick = () => setDebug(!dbgOn);
 (function versions() {   // kids edition: link back to the grown-up game
   const pages = /github\.io$/.test(location.hostname);
-  $('vers').innerHTML = 'KIDS v21' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
+  $('vers').innerHTML = 'KIDS v22' + (ULTRA_V ? ' · Ultra ' + ULTRA_V.toUpperCase() : '') + ' · <a href="' + (pages ? '../pulserail/' : '/pulserail') + '">Pulse Rail (grown-ups)</a>';
 })();
 
 // ---------- fps chip + debug overlay ----------
@@ -2038,6 +2064,7 @@ addEventListener('keydown', e => {
   if (k === 404 || k === 71) { e.preventDefault(); setWeapon(WIDS[(WIDS.indexOf(weapon) + 1) % WIDS.length]); return; }
   if (state === 'calib') { e.preventDefault(); if (name === 'ok' || k === 32) finishCalib(false); else if (name === 'back') finishCalib(true);
     else if (k === 37 || k === 39) { offMs = Math.max(-200, Math.min(300, offMs + (k === 39 ? 10 : -10))); localStorage.setItem(OFFKEY, offMs); calDraw(false); SFX.click(); } return; }
+  if (setFrom && !$('settings').classList.contains('hidden') && (name === 'back' || k === 80)) { e.preventDefault(); closeSettings(); return; }
   if (name === 'back' || k === 80) {
     if (state === 'play') { e.preventDefault(); pauseGame(); } else if (state === 'paused') { e.preventDefault(); resumeGame(); }
     else if (state === 'results') { e.preventDefault(); toTitle(); }
